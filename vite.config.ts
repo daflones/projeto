@@ -21,6 +21,12 @@ export default defineConfig({
   },
   preview: {
     host: '0.0.0.0',
-    port: 4173,
+    port: 8080,
+    allowedHosts: [
+      'traitor.multicrypto.com.br',
+      'automaclinic-traitor.owelyh.easypanel.host',
+      'localhost',
+      '127.0.0.1'
+    ]
   }
 })
