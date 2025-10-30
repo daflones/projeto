@@ -24,8 +24,65 @@ const PaymentPage = () => {
     phone: ''
   })
   const [cardError, setCardError] = useState('')
+  const [randomTestimonials, setRandomTestimonials] = useState<any[]>([])
+
+  const allTestimonials = [
+    {
+      name: "Patricia S.",
+      avatar: "👩",
+      color: "pink",
+      text: "Valeu cada centavo! Descobri coisas que nunca imaginei. O relatório é muito detalhado."
+    },
+    {
+      name: "Roberto M.",
+      avatar: "👨",
+      color: "blue",
+      text: "Funcionou perfeitamente! Agora tenho certeza e posso tomar uma decisão."
+    },
+    {
+      name: "Juliana F.",
+      avatar: "👩",
+      color: "purple",
+      text: "Incrível! Me ajudou a descobrir a verdade. Recomendo muito!"
+    },
+    {
+      name: "Carlos A.",
+      avatar: "👨",
+      color: "green",
+      text: "Melhor investimento que fiz. Descobri tudo que precisava saber."
+    },
+    {
+      name: "Amanda L.",
+      avatar: "👩",
+      color: "red",
+      text: "Rápido e eficiente! Em minutos tive o relatório completo."
+    },
+    {
+      name: "Felipe R.",
+      avatar: "👨",
+      color: "yellow",
+      text: "Surpreendente! Não acreditei no tanto de informação que consegui."
+    },
+    {
+      name: "Mariana C.",
+      avatar: "👩",
+      color: "indigo",
+      text: "Salvou meu relacionamento! Agora sei a verdade e posso seguir em frente."
+    },
+    {
+      name: "Lucas P.",
+      avatar: "👨",
+      color: "teal",
+      text: "Muito bom! Interface fácil e resultado completo. Vale muito a pena!"
+    }
+  ]
 
   useEffect(() => {
+    // Limpar dados antigos de pagamento/resultados ao entrar na página
+    localStorage.removeItem('paymentConfirmed')
+    localStorage.removeItem('paymentTimestamp')
+    localStorage.removeItem('finalResults')
+    
     // Verificar se temos dados da análise
     const results = localStorage.getItem('analysisResults')
     const data = localStorage.getItem('analysisData')
@@ -37,6 +94,10 @@ const PaymentPage = () => {
     
     setAnalysisResults(JSON.parse(results))
     setAnalysisData(JSON.parse(data))
+
+    // Selecionar 2 depoimentos aleatórios
+    const shuffled = [...allTestimonials].sort(() => Math.random() - 0.5)
+    setRandomTestimonials(shuffled.slice(0, 2))
 
     // Timer countdown
     const timer = setInterval(() => {
@@ -91,16 +152,59 @@ const PaymentPage = () => {
   }
 
   const handlePixPayment = () => {
-    // Gerar resultados finais aleatórios
+    // Lista de mensagens
+    const allMessages = [
+      "Oi, tudo bem? Tô com saudades...", "Consegue sair hoje?", "Deleta depois, ok?",
+      "Não fala nada pra ninguém", "Tô pensando em você", "Que tal nos encontrarmos?",
+      "Adorei ontem ❤️", "Você tá livre?", "Preciso te ver", "Tá complicado aqui em casa...",
+      "Você é especial pra mim", "Quando vai dar certo?", "Nosso segredo", "Mal posso esperar",
+      "Oi lindeza, como foi o dia?", "Conseguiu sair de casa?", "Tô morrendo de saudade",
+      "Vamos marcar algo?", "Não posso parar de pensar em você", "Ela/ele não desconfia de nada",
+      "Te amo demais", "Quando a gente vai ficar junto?", "Apaga tudo depois", "Só você me entende",
+      "Tô louca/o pra te ver", "Hoje não vai dar...", "Inventei uma desculpa aqui", "Você é incrível"
+    ]
+    
+    // Pegar quantidade da análise
+    const numMessages = analysisResults.messages || 0
+    const numContacts = analysisResults.contacts || 0
+    const numMedia = analysisResults.media || 0
+    
+    // Selecionar mensagens
+    const shuffled = [...allMessages].sort(() => Math.random() - 0.5)
+    const selectedMessages = shuffled.slice(0, numMessages)
+    
+    // Extrair DDD
+    const ddd = analysisData.whatsapp.match(/\d{2,3}/)?.[0] || '11'
+    
+    // Gerar contatos
+    const contactNames = ["Contato não salvo", "❤️ Amor", "Trabalho 😉", "🔥 Gatinha", "Amigo(a)"]
+    const selectedContacts = contactNames.slice(0, numContacts).map((name, i) => ({
+      name,
+      number: `+55 ${ddd} 9${1000 + Math.floor(Math.random() * 9000)}-${1000 + Math.floor(Math.random() * 9000)}`,
+      risk: i === 0 || i === 2 || i === 3 ? "Alto" : "Médio"
+    }))
+    
+    // Dividir mídias
+    const photos = Math.floor(numMedia * 0.6)
+    const videos = numMedia - photos
+    const deletedMedia = Math.floor(numMedia * 0.3)
+    
+    // Criar resultado final
     const finalResults = {
-      ...analysisResults,
-      detailedMessages: generateRandomMessages(),
-      suspiciousContacts: generateRandomContacts(),
-      mediaAnalysis: generateRandomMedia(),
-      riskScore: Math.floor(Math.random() * 30) + 70, // 70-100
+      messages: numMessages,
+      contacts: numContacts,
+      media: numMedia,
+      riskLevel: analysisResults.riskLevel,
+      detailedMessages: selectedMessages,
+      suspiciousContacts: selectedContacts,
+      mediaAnalysis: { photos, videos, deletedMedia },
+      deletedMedia,
+      riskScore: Math.floor(Math.random() * 30) + 70,
       recommendations: generateRecommendations()
     }
     
+    localStorage.setItem('paymentConfirmed', 'true')
+    localStorage.setItem('paymentTimestamp', Date.now().toString())
     localStorage.setItem('finalResults', JSON.stringify(finalResults))
     navigate('/resultado')
   }
@@ -113,33 +217,6 @@ const PaymentPage = () => {
     }))
   }
 
-  const generateRandomMessages = () => {
-    const messages = [
-      "Mensagem deletada às 23:45 - conteúdo suspeito",
-      "Conversa com contato não salvo - 15 mensagens",
-      "Troca de fotos íntimas identificada",
-      "Mensagens enviadas durante horário de trabalho",
-      "Conversas em horários suspeitos (madrugada)"
-    ]
-    return messages.slice(0, Math.floor(Math.random() * 3) + 2)
-  }
-
-  const generateRandomContacts = () => {
-    const contacts = [
-      { name: "Contato não salvo", number: "+55 11 9****-****", risk: "Alto" },
-      { name: "❤️ Amor", number: "+55 11 9****-****", risk: "Médio" },
-      { name: "Trabalho 😉", number: "+55 11 9****-****", risk: "Alto" }
-    ]
-    return contacts.slice(0, Math.floor(Math.random() * 2) + 1)
-  }
-
-  const generateRandomMedia = () => {
-    return {
-      photos: Math.floor(Math.random() * 5) + 3,
-      videos: Math.floor(Math.random() * 3) + 1,
-      deletedMedia: Math.floor(Math.random() * 4) + 2
-    }
-  }
 
   const generateRecommendations = () => {
     return [
@@ -327,47 +404,97 @@ const PaymentPage = () => {
             </div>
 
             {/* Payment Method Tabs */}
-            <div className="flex bg-white/10 rounded-2xl p-2 mb-8 border border-white/20">
+            <div className="grid grid-cols-2 gap-4 mb-8">
               <button
                 onClick={() => setPaymentMethod('card')}
-                className={`flex-1 flex items-center justify-center space-x-4 py-6 px-6 rounded-xl transition-all duration-300 ${
+                className={`relative overflow-hidden group transition-all duration-300 outline-none focus:outline-none active:outline-none ${
                   paymentMethod === 'card'
-                    ? 'bg-white/20 text-white shadow-lg backdrop-blur-sm border border-white/30'
-                    : 'text-gray-300 hover:text-white hover:bg-white/10'
+                    ? 'transform scale-105'
+                    : 'hover:scale-102'
                 }`}
               >
-                <CreditCard className="w-7 h-7" />
-                <div className="text-left">
-                  <div className="font-bold text-lg">Cartão de Crédito</div>
-                  <div className="text-sm opacity-80">Visa • Mastercard • Elo</div>
-                </div>
-                {showPixDiscount && paymentMethod !== 'card' && (
-                  <div className="text-xs bg-orange-500 text-white px-3 py-1 rounded-full font-bold">
-                    20% OFF no PIX
+                <div className={`relative p-6 rounded-xl border-2 transition-all duration-300 ${
+                  paymentMethod === 'card'
+                    ? 'bg-gradient-to-br from-red-600 via-red-700 to-purple-800 border-red-500 shadow-2xl shadow-red-500/50'
+                    : 'bg-gray-900 border-gray-600 hover:border-red-500/50 hover:bg-gray-800'
+                }`}>
+                  <div className="flex items-center space-x-4">
+                    <CreditCard className={`w-8 h-8 ${
+                      paymentMethod === 'card'
+                        ? 'text-gray-900'
+                        : 'text-gray-300'
+                    }`} />
+                    <div className="flex-1 text-left">
+                      <div className={`font-bold text-lg mb-1 ${
+                        paymentMethod === 'card'
+                          ? 'text-gray-900'
+                          : 'text-gray-200'
+                      }`}>
+                        Cartão de Crédito
+                      </div>
+                      <div className={`text-xs ${
+                        paymentMethod === 'card'
+                          ? 'text-gray-700'
+                          : 'text-gray-400'
+                      }`}>
+                        Visa • Mastercard • Elo
+                      </div>
+                    </div>
                   </div>
-                )}
+                  {showPixDiscount && paymentMethod !== 'card' && (
+                    <div className="absolute top-2 right-2">
+                      <div className="text-xs bg-orange-500 text-white px-2 py-1 rounded-full font-bold animate-pulse">
+                        20% OFF no PIX
+                      </div>
+                    </div>
+                  )}
+                </div>
               </button>
 
               <button
                 onClick={() => setPaymentMethod('pix')}
-                className={`flex-1 flex items-center justify-center space-x-4 py-6 px-6 rounded-xl transition-all duration-300 ${
+                className={`relative overflow-hidden group transition-all duration-300 outline-none focus:outline-none active:outline-none ${
                   paymentMethod === 'pix'
-                    ? 'bg-white/20 text-white shadow-lg backdrop-blur-sm border border-white/30'
-                    : 'text-gray-300 hover:text-white hover:bg-white/10'
+                    ? 'transform scale-105'
+                    : 'hover:scale-102'
                 }`}
               >
-                <Smartphone className="w-7 h-7" />
-                <div className="text-left">
-                  <div className="font-bold text-lg">PIX</div>
-                  <div className="text-sm opacity-80">
-                    {showPixDiscount ? 'Com 20% de desconto' : 'Pagamento instantâneo'}
+                <div className={`relative p-6 rounded-xl border-2 transition-all duration-300 ${
+                  paymentMethod === 'pix'
+                    ? 'bg-gradient-to-br from-green-600 via-emerald-600 to-teal-700 border-green-500 shadow-2xl shadow-green-500/50'
+                    : 'bg-gray-900 border-gray-600 hover:border-green-500/50 hover:bg-gray-800'
+                }`}>
+                  <div className="flex items-center space-x-4">
+                    <Smartphone className={`w-8 h-8 ${
+                      paymentMethod === 'pix'
+                        ? 'text-gray-900'
+                        : 'text-gray-300'
+                    }`} />
+                    <div className="flex-1 text-left">
+                      <div className={`font-bold text-lg mb-1 ${
+                        paymentMethod === 'pix'
+                          ? 'text-gray-900'
+                          : 'text-gray-200'
+                      }`}>
+                        PIX
+                      </div>
+                      <div className={`text-xs ${
+                        paymentMethod === 'pix'
+                          ? 'text-gray-700'
+                          : 'text-gray-400'
+                      }`}>
+                        {showPixDiscount ? 'Com 20% de desconto' : 'Pagamento instantâneo'}
+                      </div>
+                    </div>
                   </div>
+                  {showPixDiscount && paymentMethod === 'pix' && (
+                    <div className="absolute top-2 right-2">
+                      <div className="text-xs bg-yellow-400 text-gray-900 px-2 py-1 rounded-full font-bold">
+                        20% OFF
+                      </div>
+                    </div>
+                  )}
                 </div>
-                {showPixDiscount && paymentMethod === 'pix' && (
-                  <div className="text-xs bg-green-500 text-white px-3 py-1 rounded-full font-bold">
-                    20% OFF
-                  </div>
-                )}
               </button>
             </div>
 
@@ -553,35 +680,22 @@ const PaymentPage = () => {
             </h3>
             
             <div className="grid md:grid-cols-2 gap-6">
-              <div className="bg-white/5 rounded-xl p-6 border border-white/10">
-                <div className="flex items-center mb-4">
-                  <div className="w-12 h-12 bg-pink-500/20 rounded-full flex items-center justify-center border border-pink-500/30">
-                    <span className="text-2xl">👩</span>
+              {randomTestimonials.map((testimonial, index) => (
+                <div key={index} className="bg-white/5 rounded-xl p-6 border border-white/10">
+                  <div className="flex items-center mb-4">
+                    <div className={`w-12 h-12 bg-${testimonial.color}-500/20 rounded-full flex items-center justify-center border border-${testimonial.color}-500/30`}>
+                      <span className="text-2xl">{testimonial.avatar}</span>
+                    </div>
+                    <div className="ml-3">
+                      <h4 className="font-semibold text-white">{testimonial.name}</h4>
+                      <div className="text-yellow-400">⭐⭐⭐⭐⭐</div>
+                    </div>
                   </div>
-                  <div className="ml-3">
-                    <h4 className="font-semibold text-white">Patricia S.</h4>
-                    <div className="text-yellow-400">⭐⭐⭐⭐⭐</div>
-                  </div>
+                  <p className="text-gray-300 italic">
+                    "{testimonial.text}"
+                  </p>
                 </div>
-                <p className="text-gray-300 italic">
-                  "Valeu cada centavo! Descobri coisas que nunca imaginei. O relatório é muito detalhado."
-                </p>
-              </div>
-
-              <div className="bg-white/5 rounded-xl p-6 border border-white/10">
-                <div className="flex items-center mb-4">
-                  <div className="w-12 h-12 bg-blue-500/20 rounded-full flex items-center justify-center border border-blue-500/30">
-                    <span className="text-2xl">👨</span>
-                  </div>
-                  <div className="ml-3">
-                    <h4 className="font-semibold text-white">Roberto M.</h4>
-                    <div className="text-yellow-400">⭐⭐⭐⭐⭐</div>
-                  </div>
-                </div>
-                <p className="text-gray-300 italic">
-                  "Funcionou perfeitamente! Agora tenho certeza e posso tomar uma decisão."
-                </p>
-              </div>
+              ))}
             </div>
           </div>
         </div>

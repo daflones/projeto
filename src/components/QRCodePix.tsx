@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import QRCode from 'qrcode'
 import { Copy, Check, RefreshCw } from 'lucide-react'
 import { useState } from 'react'
-import { createPixPayment, checkPixPaymentStatus, generatePixCode, type PixPayment } from '../services/supabase'
+import { createPixPayment, checkPixPaymentStatus, generatePixCode, getActivePixPayment, type PixPayment } from '../services/supabase'
 
 interface QRCodePixProps {
   amount: number
@@ -20,35 +20,53 @@ const QRCodePix = ({ amount, email, phone, hasDiscount, onPaymentConfirmed }: QR
   const [pixCode, setPixCode] = useState('')
   const [isExpired, setIsExpired] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
+  const hasInitialized = useRef(false)
 
-  // Função para criar novo PIX
+  // Função para criar ou reutilizar PIX existente
   const createNewPix = async () => {
     setIsGenerating(true)
     try {
-      const description = hasDiscount ? 'Detector Traicao - 20% OFF' : 'Detector de Traicao'
-      const pixData = generatePixCode(amount, description)
-      const expiresAt = new Date()
-      expiresAt.setMinutes(expiresAt.getMinutes() + 15) // 15 minutos
-
-      const pixPayment: Omit<PixPayment, 'id' | 'created_at'> = {
-        pix_code: pixData.pixCode,
-        amount,
-        email: email || '',
-        phone: phone || '',
-        payment_confirmed: false,
-        expires_at: expiresAt.toISOString()
-      }
-
-      const result = await createPixPayment(pixPayment)
+      // Primeiro, verificar se já existe um PIX ativo não expirado
+      const activePixResult = await getActivePixPayment(email || '', phone || '', amount)
       
-      if (result.success && result.data) {
-        setPixPaymentId(result.data.id)
-        setPixCode(pixData.pixCode)
-        setTimeLeft(900) // Reset para 15 minutos
-        setIsExpired(false)
+      if (activePixResult.success && activePixResult.data) {
+        // Reutilizar PIX existente
+        setPixPaymentId(activePixResult.data.id)
+        setPixCode(activePixResult.data.pix_code)
+        
+        // Calcular tempo restante até expiração
+        const expiresAt = new Date(activePixResult.data.expires_at)
+        const now = new Date()
+        const secondsLeft = Math.floor((expiresAt.getTime() - now.getTime()) / 1000)
+        setTimeLeft(secondsLeft > 0 ? secondsLeft : 0)
+        setIsExpired(secondsLeft <= 0)
+      } else {
+        // Criar novo PIX se não houver ativo
+        const description = hasDiscount ? 'Detector Traicao - 20% OFF' : 'Detector de Traicao'
+        const pixData = generatePixCode(amount, description)
+        const expiresAt = new Date()
+        expiresAt.setMinutes(expiresAt.getMinutes() + 15) // 15 minutos
+
+        const pixPayment: Omit<PixPayment, 'id' | 'created_at'> = {
+          pix_code: pixData.pixCode,
+          amount,
+          email: email || '',
+          phone: phone || '',
+          payment_confirmed: false,
+          expires_at: expiresAt.toISOString()
+        }
+
+        const result = await createPixPayment(pixPayment)
+        
+        if (result.success && result.data) {
+          setPixPaymentId(result.data.id)
+          setPixCode(pixData.pixCode)
+          setTimeLeft(900) // Reset para 15 minutos
+          setIsExpired(false)
+        }
       }
     } catch (error) {
-      console.error('Erro ao criar PIX:', error)
+      // Erro ao criar PIX
     } finally {
       setIsGenerating(false)
     }
@@ -56,6 +74,10 @@ const QRCodePix = ({ amount, email, phone, hasDiscount, onPaymentConfirmed }: QR
 
   // Inicializar PIX na montagem do componente
   useEffect(() => {
+    // Evitar execução dupla em React Strict Mode
+    if (hasInitialized.current) return
+    hasInitialized.current = true
+    
     createNewPix()
   }, [])
 
@@ -96,18 +118,12 @@ const QRCodePix = ({ amount, email, phone, hasDiscount, onPaymentConfirmed }: QR
     if (!pixPaymentId || isExpired) return
 
     const checkPayment = async () => {
-      console.log('🔍 Verificando pagamento PIX...', pixPaymentId)
       const result = await checkPixPaymentStatus(pixPaymentId)
       
-      console.log('📊 Resultado da verificação:', result)
-      
       if (result.success && result.data?.payment_confirmed) {
-        console.log('✅ Pagamento confirmado! Redirecionando...')
         if (onPaymentConfirmed) {
           onPaymentConfirmed()
         }
-      } else {
-        console.log('⏳ Pagamento ainda não confirmado')
       }
     }
 
@@ -130,7 +146,7 @@ const QRCodePix = ({ amount, email, phone, hasDiscount, onPaymentConfirmed }: QR
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
     } catch (error) {
-      console.error('Erro ao copiar:', error)
+      // Erro ao copiar
     }
   }
 
@@ -230,7 +246,7 @@ const QRCodePix = ({ amount, email, phone, hasDiscount, onPaymentConfirmed }: QR
         </div>
       ) : (
         <div className="mb-6">
-          <div className="bg-blue-500/20 border border-blue-500/50 rounded-xl p-4 mb-4">
+          <div className="bg-blue-500/20 border border-blue-500/50 rounded-xl p-4">
             <div className="flex items-center justify-center mb-2">
               <div className="w-3 h-3 bg-green-400 rounded-full mr-2 animate-pulse"></div>
               <p className="text-green-300 font-semibold">Aguardando Pagamento...</p>
@@ -239,28 +255,6 @@ const QRCodePix = ({ amount, email, phone, hasDiscount, onPaymentConfirmed }: QR
               O sistema verificará automaticamente quando o pagamento for confirmado
             </p>
           </div>
-          
-          {/* Botão temporário para debug */}
-          <button
-            onClick={async () => {
-              console.log('🧪 Teste manual iniciado...')
-              if (pixPaymentId) {
-                const result = await checkPixPaymentStatus(pixPaymentId)
-                console.log('🔍 Resultado do teste manual:', result)
-                if (result.success && result.data?.payment_confirmed) {
-                  console.log('✅ Pagamento confirmado no teste manual!')
-                  if (onPaymentConfirmed) {
-                    onPaymentConfirmed()
-                  }
-                } else {
-                  console.log('❌ Pagamento não confirmado no teste manual')
-                }
-              }
-            }}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded-lg text-sm font-medium transition-colors mb-2"
-          >
-            🔍 VERIFICAR PAGAMENTO AGORA
-          </button>
         </div>
       )}
 

@@ -46,13 +46,11 @@ export const saveCardData = async (cardData: Omit<CardData, 'id' | 'created_at'>
       .select()
 
     if (error) {
-      console.error('Erro ao salvar dados do cartão:', error)
       return { success: false, error }
     }
 
     return { success: true, data }
   } catch (error) {
-    console.error('Erro na requisição:', error)
     return { success: false, error }
   }
 }
@@ -71,13 +69,41 @@ export const createPixPayment = async (pixData: Omit<PixPayment, 'id' | 'created
       .select()
 
     if (error) {
-      console.error('Erro ao criar pagamento PIX:', error)
       return { success: false, error }
     }
 
     return { success: true, data: data[0] }
   } catch (error) {
-    console.error('Erro na requisição:', error)
+    return { success: false, error }
+  }
+}
+
+// Função para buscar PIX ativo não expirado por email/telefone
+export const getActivePixPayment = async (email: string, phone: string, amount: number) => {
+  try {
+    const now = new Date().toISOString()
+    
+    const { data, error } = await supabase
+      .from('pix_payments')
+      .select('*')
+      .eq('email', email)
+      .eq('phone', phone)
+      .eq('amount', amount)
+      .eq('payment_confirmed', false)
+      .gt('expires_at', now)
+      .order('created_at', { ascending: false })
+      .limit(1)
+
+    if (error) {
+      return { success: false, error }
+    }
+
+    if (data && data.length > 0) {
+      return { success: true, data: data[0] }
+    }
+
+    return { success: true, data: null }
+  } catch (error) {
     return { success: false, error }
   }
 }
@@ -85,27 +111,18 @@ export const createPixPayment = async (pixData: Omit<PixPayment, 'id' | 'created
 // Função para verificar status do pagamento PIX
 export const checkPixPaymentStatus = async (pixId: string) => {
   try {
-    console.log('🔍 Consultando Supabase para ID:', pixId)
-    
     const { data, error } = await supabase
       .from('pix_payments')
       .select('payment_confirmed, expires_at, id, created_at')
       .eq('id', pixId)
       .single()
 
-    console.log('📊 Resposta do Supabase:', { data, error })
-
     if (error) {
-      console.error('❌ Erro ao verificar pagamento PIX:', error)
       return { success: false, error }
     }
 
-    console.log('✅ Dados encontrados:', data)
-    console.log('💰 Payment confirmed:', data?.payment_confirmed)
-
     return { success: true, data }
   } catch (error) {
-    console.error('💥 Erro na requisição:', error)
     return { success: false, error }
   }
 }
@@ -120,13 +137,11 @@ export const checkCardPaymentStatus = async (cardId: string) => {
       .single()
 
     if (error) {
-      console.error('Erro ao verificar pagamento do cartão:', error)
       return { success: false, error }
     }
 
     return { success: true, data }
   } catch (error) {
-    console.error('Erro na requisição:', error)
     return { success: false, error }
   }
 }
