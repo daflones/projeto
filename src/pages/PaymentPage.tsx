@@ -12,7 +12,7 @@ const PaymentPage = () => {
   const [selectedPlan, setSelectedPlan] = useState('premium')
   const [timeLeft, setTimeLeft] = useState(600) // 10 minutos em segundos
   const [isProcessing, setIsProcessing] = useState(false)
-  const [paymentMethod, setPaymentMethod] = useState<'card' | 'pix'>('card')
+  const [paymentMethod, setPaymentMethod] = useState<'card' | 'pix'>('pix') // Mudado para PIX por padrão para testes
   const [showPixDiscount, setShowPixDiscount] = useState(false)
   const [cardData, setCardData] = useState({
     cardNumber: '',
