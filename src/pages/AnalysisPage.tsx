@@ -17,6 +17,8 @@ const AnalysisPage = () => {
   const [currentStep, setCurrentStep] = useState(0)
   const [isAnalyzing, setIsAnalyzing] = useState(true)
   const [analysisData, setAnalysisData] = useState<any>(null)
+  const [profilePictureUrl, setProfilePictureUrl] = useState<string>('')
+  const [profileData, setProfileData] = useState<any>(null)
 
   const [steps, setSteps] = useState<AnalysisStep[]>([
     {
@@ -62,6 +64,74 @@ const AnalysisPage = () => {
     }
   ])
 
+  // Função para buscar foto de perfil
+  const fetchProfilePicture = async (number: string) => {
+    try {
+      const apiUrl = import.meta.env.VITE_EVOLUTION_API_URL
+      const apiKey = import.meta.env.VITE_EVOLUTION_API_KEY
+      const instance = import.meta.env.VITE_EVOLUTION_INSTANCE
+
+      if (!apiUrl || !apiKey || !instance) {
+        console.warn('Evolution API não configurada')
+        return
+      }
+
+      const response = await fetch(`${apiUrl}/chat/fetchProfilePictureUrl/${instance}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': apiKey
+        },
+        body: JSON.stringify({ number })
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        if (data.profilePictureUrl) {
+          setProfilePictureUrl(data.profilePictureUrl)
+        }
+      } else {
+        const errorData = await response.text()
+        console.error('Erro ao buscar foto (status ' + response.status + '):', errorData)
+      }
+    } catch (error) {
+      console.error('Erro ao buscar foto de perfil:', error)
+    }
+  }
+
+  // Função para buscar dados do perfil
+  const fetchProfile = async (number: string) => {
+    try {
+      const apiUrl = import.meta.env.VITE_EVOLUTION_API_URL
+      const apiKey = import.meta.env.VITE_EVOLUTION_API_KEY
+      const instance = import.meta.env.VITE_EVOLUTION_INSTANCE
+
+      if (!apiUrl || !apiKey || !instance) {
+        console.warn('Evolution API não configurada')
+        return
+      }
+
+      const response = await fetch(`${apiUrl}/chat/fetchProfile/${instance}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': apiKey
+        },
+        body: JSON.stringify({ number })
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setProfileData(data)
+      } else {
+        const errorData = await response.text()
+        console.error('Erro ao buscar perfil (status ' + response.status + '):', errorData)
+      }
+    } catch (error) {
+      console.error('Erro ao buscar perfil:', error)
+    }
+  }
+
   useEffect(() => {
     // Verificar se temos dados da análise
     const data = localStorage.getItem('analysisData')
@@ -69,7 +139,23 @@ const AnalysisPage = () => {
       navigate('/')
       return
     }
-    setAnalysisData(JSON.parse(data))
+    const parsedData = JSON.parse(data)
+    setAnalysisData(parsedData)
+
+    // Buscar foto de perfil e dados do usuário
+    if (parsedData.whatsapp) {
+      // Remover formatação do número (deixar apenas dígitos)
+      let cleanNumber = parsedData.whatsapp.replace(/\D/g, '')
+      
+      // Garantir que tem código do país (55 para Brasil)
+      if (!cleanNumber.startsWith('55')) {
+        cleanNumber = '55' + cleanNumber
+      }
+      
+      // Buscar perfil e foto
+      fetchProfilePicture(cleanNumber)
+      fetchProfile(cleanNumber)
+    }
 
     // Simular o processo de análise
     const interval = setInterval(() => {
@@ -136,10 +222,28 @@ const AnalysisPage = () => {
                 Sistema de detecção avançado ativo
               </p>
             </div>
-            <div className="text-right">
-              <div className="text-sm text-gray-400 mb-1">Analisando:</div>
-              <div className="text-xl font-bold text-white">{analysisData.targetName}</div>
-              <div className="text-sm text-gray-400">{analysisData.whatsapp}</div>
+            <div className="flex items-center gap-4">
+              {profilePictureUrl && (
+                <div className="relative">
+                  <img 
+                    src={profilePictureUrl} 
+                    alt="Profile" 
+                    className="w-16 h-16 rounded-full border-2 border-red-500/50 object-cover"
+                    onError={() => setProfilePictureUrl('')}
+                  />
+                  <div className="absolute -inset-1 bg-red-500/20 rounded-full animate-pulse"></div>
+                </div>
+              )}
+              <div className="text-right">
+                <div className="text-sm text-gray-400 mb-1">Analisando:</div>
+                <div className="text-xl font-bold text-white">
+                  {profileData?.name || 'Usuário'}
+                </div>
+                <div className="text-sm text-gray-400">{analysisData.whatsapp}</div>
+                {profileData?.status?.status && (
+                  <div className="text-xs text-gray-500 italic mt-1">"{profileData.status.status}"</div>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -152,21 +256,44 @@ const AnalysisPage = () => {
             <div className="text-center mb-8">
               <div className="flex justify-center mb-4">
                 <div className="relative">
-                  <div className="w-20 h-20 bg-red-500/20 rounded-full flex items-center justify-center border-2 border-red-500/50 animate-pulse">
-                    <div className="w-12 h-12 bg-red-500 rounded-full flex items-center justify-center">
-                      <span className="text-2xl">🔍</span>
-                    </div>
-                  </div>
-                  <div className="absolute -inset-2 bg-red-500/20 rounded-full animate-ping"></div>
+                  {profilePictureUrl ? (
+                    <>
+                      <div className="w-32 h-32 rounded-full border-4 border-red-500/50 overflow-hidden bg-gray-800 shadow-2xl">
+                        <img 
+                          src={profilePictureUrl} 
+                          alt="Profile" 
+                          className="w-full h-full object-cover"
+                          onError={() => setProfilePictureUrl('')}
+                        />
+                      </div>
+                      <div className="absolute -inset-2 bg-red-500/20 rounded-full animate-ping"></div>
+                      <div className="absolute -inset-1 border-2 border-red-500/30 rounded-full animate-pulse"></div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="w-32 h-32 bg-red-500/20 rounded-full flex items-center justify-center border-4 border-red-500/50 animate-pulse">
+                        <div className="w-20 h-20 bg-red-500 rounded-full flex items-center justify-center">
+                          <span className="text-4xl">🔍</span>
+                        </div>
+                      </div>
+                      <div className="absolute -inset-2 bg-red-500/20 rounded-full animate-ping"></div>
+                    </>
+                  )}
                 </div>
               </div>
               
               <h2 className="text-3xl font-bold mb-4 title-premium">
                 🔍 Analisando WhatsApp
               </h2>
+              
               <p className="text-gray-300 text-lg">
-                Verificando atividades suspeitas de <span className="text-red-400 font-bold">{analysisData.targetName}</span>
+                Verificando atividades suspeitas de <span className="text-red-400 font-bold">{profileData?.name || 'Usuário'}</span>
               </p>
+              {profileData?.status?.status && (
+                <p className="text-gray-400 text-sm italic mt-2">
+                  Status: "{profileData.status.status}"
+                </p>
+              )}
             </div>
 
             <div className="mb-8">

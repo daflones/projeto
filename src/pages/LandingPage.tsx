@@ -4,24 +4,20 @@ import { Search, Shield, AlertTriangle, Heart } from 'lucide-react'
 
 interface FormData {
   whatsapp: string
-  targetName: string
-  userEmail: string
 }
 
 const LandingPage = () => {
   const navigate = useNavigate()
   const [formData, setFormData] = useState<FormData>({
-    whatsapp: '',
-    targetName: '',
-    userEmail: ''
+    whatsapp: ''
   })
   const [isLoading, setIsLoading] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
-    if (!formData.whatsapp || !formData.targetName) {
-      alert('Por favor, preencha todos os campos obrigatórios')
+    if (!formData.whatsapp) {
+      alert('Por favor, informe o número do WhatsApp')
       return
     }
 
@@ -100,7 +96,7 @@ const LandingPage = () => {
                 🚀 Comece Sua Análise GRATUITA
               </h2>
               <p className="text-gray-300">
-                Preencha os dados abaixo para iniciar a verificação
+                Informe o número do WhatsApp para iniciar a verificação
               </p>
             </div>
 
@@ -120,38 +116,6 @@ const LandingPage = () => {
                 />
                 <p className="text-xs text-gray-400 mt-2">
                   Digite o número do WhatsApp que você suspeita
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-white mb-3">
-                  👤 Nome da Pessoa *
-                </label>
-                <input
-                  type="text"
-                  name="targetName"
-                  value={formData.targetName}
-                  onChange={handleInputChange}
-                  placeholder="Ex: João, Maria..."
-                  className="input-field"
-                  required
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-semibold text-white mb-3">
-                  📧 Seu E-mail (opcional)
-                </label>
-                <input
-                  type="email"
-                  name="userEmail"
-                  value={formData.userEmail}
-                  onChange={handleInputChange}
-                  placeholder="seu@email.com"
-                  className="input-field"
-                />
-                <p className="text-xs text-gray-400 mt-2">
-                  Para receber o relatório completo por email
                 </p>
               </div>
 

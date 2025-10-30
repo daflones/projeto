@@ -90,8 +90,7 @@ const ResultPage = () => {
 RELATÓRIO COMPLETO - DETECTOR DE TRAIÇÃO
 ===========================================
 
-ANÁLISE DE: ${analysisData.targetName}
-WhatsApp: ${analysisData.whatsapp}
+ANÁLISE DO WhatsApp: ${analysisData.whatsapp}
 Data: ${new Date().toLocaleDateString('pt-BR')}
 
 PONTUAÇÃO DE RISCO: ${finalResults.riskScore}/100
@@ -155,13 +154,13 @@ MÍDIAS ENCONTRADAS:
               
               <div className="inline-flex items-center gap-8 bg-white/10 backdrop-blur-md px-10 py-5 rounded-2xl border border-white/20 mb-8">
                 <div>
-                  <div className="text-sm text-white/70">Analisado</div>
-                  <div className="font-bold text-2xl">{analysisData.targetName}</div>
+                  <div className="text-sm text-white/70">WhatsApp Analisado</div>
+                  <div className="font-bold text-2xl font-mono">{analysisData.whatsapp}</div>
                 </div>
                 <div className="w-px h-12 bg-white/30"></div>
                 <div>
-                  <div className="text-sm text-white/70">WhatsApp</div>
-                  <div className="font-bold text-2xl font-mono">{analysisData.whatsapp}</div>
+                  <div className="text-sm text-white/70">Data da Análise</div>
+                  <div className="font-bold text-2xl">{new Date().toLocaleDateString('pt-BR')}</div>
                 </div>
               </div>
 

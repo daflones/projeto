@@ -288,7 +288,7 @@ const PaymentPage = () => {
                 🚨 ANÁLISE CONCLUÍDA - ATIVIDADE SUSPEITA DETECTADA!
               </h2>
               <p className="text-gray-600">
-                Encontramos evidências preocupantes no WhatsApp de <strong>{analysisData.targetName}</strong>
+                Encontramos evidências preocupantes no WhatsApp <strong>{analysisData.whatsapp}</strong>
               </p>
             </div>
 
