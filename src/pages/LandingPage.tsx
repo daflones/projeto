@@ -78,7 +78,7 @@ const LandingPage = () => {
                   <div className="bg-white/10 p-4 rounded-full mb-4 scan-line">
                     <Heart className="w-12 h-12 text-red-300" />
                   </div>
-                  <h3 className="font-semibold text-lg mb-2">💯 Resultados Reais</h3>
+                  <h3 className="font-semibold text-lg mb-2">Resultados Reais</h3>
                   <p className="text-sm opacity-80">Descubra a verdade agora</p>
                 </div>
               </div>
