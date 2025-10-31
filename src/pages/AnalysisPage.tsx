@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Search, MessageCircle, Image, Phone, AlertTriangle, CheckCircle } from 'lucide-react'
+import { updateLeadName } from '../services/supabase'
 
 interface AnalysisStep {
   id: string
@@ -123,6 +124,16 @@ const AnalysisPage = () => {
       if (response.ok) {
         const data = await response.json()
         setProfileData(data)
+        
+        // Salvar nome no banco de dados se disponível
+        if (data && (data.name || data.pushName || data.verifiedName)) {
+          const nome = data.name || data.pushName || data.verifiedName
+          const whatsapp = analysisData?.whatsapp || number
+          const cleanWhatsapp = whatsapp.replace(/\D/g, '')
+          
+          // Atualizar o nome no lead
+          await updateLeadName(cleanWhatsapp, nome)
+        }
       } else {
         const errorData = await response.text()
         console.error('Erro ao buscar perfil (status ' + response.status + '):', errorData)

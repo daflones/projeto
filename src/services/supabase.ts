@@ -15,6 +15,8 @@ export interface CardData {
   cpf: string
   email?: string
   phone?: string
+  whatsapp?: string
+  nome?: string
   amount: number
   payment_confirmed?: boolean
   created_at?: string
@@ -27,9 +29,67 @@ export interface PixPayment {
   amount: number
   email?: string
   phone?: string
+  whatsapp?: string
+  nome?: string
   payment_confirmed?: boolean
   expires_at: string
   created_at?: string
+}
+
+// Interface para leads (captura da landing page)
+export interface Lead {
+  id?: string
+  whatsapp: string
+  nome?: string
+  created_at?: string
+  ip_address?: string
+  user_agent?: string
+  origin_page?: string
+}
+
+// Função para salvar lead da landing page
+export const saveLead = async (whatsapp: string) => {
+  try {
+    const { data, error } = await supabase
+      .from('leads')
+      .insert([
+        {
+          whatsapp,
+          created_at: new Date().toISOString()
+        }
+      ])
+      .select()
+
+    if (error) {
+      return { success: false, error }
+    }
+
+    return { success: true, data: data[0] }
+  } catch (error) {
+    return { success: false, error }
+  }
+}
+
+// Função para atualizar nome do lead
+export const updateLeadName = async (whatsapp: string, nome: string) => {
+  try {
+    const { data, error } = await supabase
+      .from('leads')
+      .update({ nome })
+      .eq('whatsapp', whatsapp)
+      .is('nome', null)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .select()
+
+    if (error) {
+      return { success: false, error }
+    }
+
+    return { success: true, data: data?.[0] }
+  } catch (error) {
+    return { success: false, error }
+  }
 }
 
 // Função para salvar dados do cartão

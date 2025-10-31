@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Search, Shield, AlertTriangle, Heart } from 'lucide-react'
+import { saveLead } from '../services/supabase'
 
 interface FormData {
   whatsapp: string
@@ -12,30 +13,103 @@ const LandingPage = () => {
     whatsapp: ''
   })
   const [isLoading, setIsLoading] = useState(false)
+  const [phoneError, setPhoneError] = useState('')
+
+  // Função para formatar telefone brasileiro
+  const formatPhoneNumber = (value: string): string => {
+    // Remove tudo que não é número
+    const numbers = value.replace(/\D/g, '')
+    
+    // Limita a 11 dígitos
+    const limited = numbers.slice(0, 11)
+    
+    // Aplica a máscara (11) 99999-9999
+    if (limited.length <= 2) {
+      return limited
+    } else if (limited.length <= 7) {
+      return `(${limited.slice(0, 2)}) ${limited.slice(2)}`
+    } else {
+      return `(${limited.slice(0, 2)}) ${limited.slice(2, 7)}-${limited.slice(7)}`
+    }
+  }
+
+  // Função para validar número brasileiro
+  const validatePhoneNumber = (phone: string): boolean => {
+    const numbers = phone.replace(/\D/g, '')
+    
+    // Deve ter exatamente 11 dígitos (2 DDD + 9 celular)
+    if (numbers.length !== 11) {
+      return false
+    }
+    
+    // DDD deve ser válido (11-99)
+    const ddd = parseInt(numbers.slice(0, 2))
+    if (ddd < 11 || ddd > 99) {
+      return false
+    }
+    
+    // Celular deve começar com 9
+    const firstDigit = numbers.charAt(2)
+    if (firstDigit !== '9') {
+      return false
+    }
+    
+    return true
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
     if (!formData.whatsapp) {
-      alert('Por favor, informe o número do WhatsApp')
+      setPhoneError('Por favor, informe o número do WhatsApp')
       return
     }
 
+    if (!validatePhoneNumber(formData.whatsapp)) {
+      setPhoneError('Número inválido! Use o formato (11) 99999-9999')
+      return
+    }
+
+    setPhoneError('')
     setIsLoading(true)
+    
+    // Salvar lead no banco de dados
+    const cleanWhatsapp = formData.whatsapp.replace(/\D/g, '')
+    await saveLead(cleanWhatsapp)
+    
+    // Salvar dados no localStorage para usar nas próximas páginas
+    localStorage.setItem('analysisData', JSON.stringify({
+      ...formData,
+      whatsapp: cleanWhatsapp
+    }))
     
     // Simular um pequeno delay para parecer mais real
     setTimeout(() => {
-      // Salvar dados no localStorage para usar nas próximas páginas
-      localStorage.setItem('analysisData', JSON.stringify(formData))
       navigate('/analise')
     }, 1500)
   }
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value
-    })
+    const { name, value } = e.target
+    
+    if (name === 'whatsapp') {
+      // Aplica a máscara e atualiza
+      const formatted = formatPhoneNumber(value)
+      setFormData({
+        ...formData,
+        [name]: formatted
+      })
+      
+      // Limpa erro ao digitar
+      if (phoneError) {
+        setPhoneError('')
+      }
+    } else {
+      setFormData({
+        ...formData,
+        [name]: value
+      })
+    }
   }
 
   return (
@@ -111,12 +185,19 @@ const LandingPage = () => {
                   value={formData.whatsapp}
                   onChange={handleInputChange}
                   placeholder="(11) 99999-9999"
-                  className="input-field"
+                  className={`input-field ${phoneError ? 'border-red-500 border-2' : ''}`}
                   required
+                  maxLength={15}
                 />
-                <p className="text-xs text-gray-400 mt-2">
-                  Digite o número do WhatsApp que você suspeita
-                </p>
+                {phoneError ? (
+                  <p className="text-sm text-red-400 mt-2 font-semibold">
+                    ⚠️ {phoneError}
+                  </p>
+                ) : (
+                  <p className="text-xs text-gray-400 mt-2">
+                    Digite o número do WhatsApp que você suspeita (apenas números brasileiros)
+                  </p>
+                )}
               </div>
 
               <button

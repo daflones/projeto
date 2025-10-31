@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useCallback } from 'react'
 import QRCode from 'qrcode'
 import { Copy, Check, RefreshCw } from 'lucide-react'
 import { useState } from 'react'
@@ -23,7 +23,7 @@ const QRCodePix = ({ amount, email, phone, hasDiscount, onPaymentConfirmed }: QR
   const hasInitialized = useRef(false)
 
   // Função para criar ou reutilizar PIX existente
-  const createNewPix = async () => {
+  const createNewPix = useCallback(async () => {
     setIsGenerating(true)
     try {
       // Primeiro, verificar se já existe um PIX ativo não expirado
@@ -70,7 +70,7 @@ const QRCodePix = ({ amount, email, phone, hasDiscount, onPaymentConfirmed }: QR
     } finally {
       setIsGenerating(false)
     }
-  }
+  }, [amount, email, phone, hasDiscount])
 
   // Inicializar PIX na montagem do componente
   useEffect(() => {
@@ -79,7 +79,21 @@ const QRCodePix = ({ amount, email, phone, hasDiscount, onPaymentConfirmed }: QR
     hasInitialized.current = true
     
     createNewPix()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Gerar novo PIX quando o valor ou desconto mudar
+  useEffect(() => {
+    // Só executar após inicialização
+    if (!hasInitialized.current) return
+    
+    // Resetar estado e gerar novo PIX
+    setPixCode('')
+    setPixPaymentId(null)
+    setIsExpired(false)
+    setTimeLeft(900)
+    createNewPix()
+  }, [createNewPix])
 
   // Gerar QR Code quando pixCode mudar
   useEffect(() => {
