@@ -158,15 +158,12 @@ const AnalysisPage = () => {
       // Buscar análise anterior do banco de dados ANTES de iniciar o intervalo
       if (parsedData.whatsapp) {
         const cleanWhatsapp = parsedData.whatsapp.replace(/\D/g, '')
-        console.log('🔍 Buscando análise anterior para:', cleanWhatsapp)
         
         const previousAnalysis = await getAnalysisResults(cleanWhatsapp)
-        console.log('📊 Análise anterior encontrada:', previousAnalysis)
 
         // Se encontrou análise anterior, incrementar os números
         if (previousAnalysis.success && previousAnalysis.data) {
           const prev = previousAnalysis.data
-          console.log('✨ Incrementando números da análise anterior:', prev)
           
           // Incrementar garantindo um mínimo de +2 em cada campo
           const incrementMessages = Math.max(2, Math.floor(prev.messages_count * 0.25))
@@ -177,30 +174,19 @@ const AnalysisPage = () => {
           const newMediaCount = prev.media_count + incrementMedia
           const newContactsCount = prev.contacts_count + incrementContacts
           
-          console.log('📈 Incrementos aplicados:', {
-            messages: `${prev.messages_count} + ${incrementMessages} = ${newMessagesCount}`,
-            media: `${prev.media_count} + ${incrementMedia} = ${newMediaCount}`,
-            contacts: `${prev.contacts_count} + ${incrementContacts} = ${newContactsCount}`
-          })
-          
           // Atualizar os steps ANTES do intervalo começar
           setSteps(current => current.map(step => {
             if (step.id === 'messages') {
-              console.log('🔄 Atualizando step messages para:', newMessagesCount)
               return { ...step, count: newMessagesCount }
             }
             if (step.id === 'media') {
-              console.log('🔄 Atualizando step media para:', newMediaCount)
               return { ...step, count: newMediaCount }
             }
             if (step.id === 'contacts') {
-              console.log('🔄 Atualizando step contacts para:', newContactsCount)
               return { ...step, count: newContactsCount }
             }
             return step
           }))
-        } else {
-          console.log('🆕 Primeira análise deste número - usando valores aleatórios')
         }
 
         // Remover formatação do número (deixar apenas dígitos)
@@ -257,21 +243,11 @@ const AnalysisPage = () => {
   }, [navigate])
 
   const handleFinishAnalysis = async () => {
-    console.log('🔍 handleFinishAnalysis chamado!')
-    console.log('📊 Steps:', steps)
-    
     // Gerar dados aleatórios para o resultado
     const messagesCount = steps[1].count || 0
     const mediaCount = steps[2].count || 0
     const contactsCount = steps[3].count || 0
     const riskLevel = Math.random() > 0.3 ? 'high' : 'medium' // 70% chance de alto risco
-
-    console.log('📈 Números extraídos:', {
-      messages: messagesCount,
-      media: mediaCount,
-      contacts: contactsCount,
-      riskLevel
-    })
 
     const suspiciousFindings = {
       messages: messagesCount,
@@ -281,40 +257,24 @@ const AnalysisPage = () => {
     }
 
     localStorage.setItem('analysisResults', JSON.stringify(suspiciousFindings))
-    console.log('💾 Dados salvos no localStorage')
     
     // Salvar resultados da análise no banco de dados
     if (analysisData?.whatsapp) {
       const cleanWhatsapp = analysisData.whatsapp.replace(/\D/g, '')
-      console.log('📱 Salvando análise para WhatsApp:', cleanWhatsapp)
-      console.log('Dados completos:', {
-        whatsapp: cleanWhatsapp,
-        messages: messagesCount,
-        media: mediaCount,
-        contacts: contactsCount,
-        riskLevel
-      })
       
-      const result = await saveAnalysisResults(
+      await saveAnalysisResults(
         cleanWhatsapp,
         messagesCount,
         mediaCount,
         contactsCount,
         riskLevel as 'low' | 'medium' | 'high'
       )
-      
-      console.log('✅ Resultado da análise:', result)
-    } else {
-      console.warn('❌ WhatsApp não encontrado em analysisData:', analysisData)
     }
-    
-    console.log('⬆️ Scrollando para o topo...')
     // Scroll para o topo antes de navegar
     window.scrollTo({ top: 0, behavior: 'smooth' })
     
     // Pequeno delay para o scroll completar
     setTimeout(() => {
-      console.log('🚀 Navegando para /pagamento')
       navigate('/pagamento')
     }, 300)
   }
@@ -550,10 +510,7 @@ const AnalysisPage = () => {
                   </div>
 
                   <button
-                    onClick={() => {
-                      console.log('🔘 Botão clicado!')
-                      handleFinishAnalysis()
-                    }}
+                    onClick={handleFinishAnalysis}
                     className="btn-primary text-2xl py-6 px-12 mb-4"
                   >
                     📋 VER RELATÓRIO COMPLETO

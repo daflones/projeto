@@ -363,8 +363,6 @@ export const saveAnalysisResults = async (
   riskLevel: 'low' | 'medium' | 'high'
 ) => {
   try {
-    console.log('💾 Salvando análise:', { whatsapp, messagesCount, mediaCount, contactsCount, riskLevel })
-    
     // Primeiro, verificar se já existe um registro para este WhatsApp
     const { data: existingData, error: fetchError } = await supabase
       .from('analysis_results')
@@ -374,7 +372,7 @@ export const saveAnalysisResults = async (
       .limit(1)
 
     if (fetchError) {
-      console.error('Erro ao buscar análises existentes:', fetchError)
+      // Erro silencioso
     }
 
     let result
@@ -384,8 +382,6 @@ export const saveAnalysisResults = async (
       // Já existe - fazer UPDATE
       const existing = existingData[0]
       nextAnalysisNumber = existing.analysis_number
-      
-      console.log('📝 Atualizando registro existente:', existing.id)
 
       const { data: updateData, error: updateError } = await supabase
         .from('analysis_results')
@@ -400,17 +396,13 @@ export const saveAnalysisResults = async (
         .select()
 
       if (updateError) {
-        console.error('Erro ao atualizar análise:', updateError)
         return { success: false, error: updateError }
       }
 
       result = updateData?.[0]
-      console.log('✅ Análise atualizada com sucesso:', result)
     } else {
       // Não existe - fazer INSERT
       nextAnalysisNumber = 1
-      
-      console.log('🆕 Criando novo registro (primeira análise)')
 
       const { data: insertData, error: insertError } = await supabase
         .from('analysis_results')
@@ -427,12 +419,10 @@ export const saveAnalysisResults = async (
         .select()
 
       if (insertError) {
-        console.error('Erro ao inserir análise:', insertError)
         return { success: false, error: insertError }
       }
 
       result = insertData?.[0]
-      console.log('✅ Análise criada com sucesso:', result)
     }
 
     // Sempre registrar no histórico
@@ -450,14 +440,11 @@ export const saveAnalysisResults = async (
       ])
 
     if (historyError) {
-      console.warn('⚠️ Aviso ao salvar no histórico:', historyError)
-    } else {
-      console.log('📚 Histórico atualizado')
+      // Erro silencioso no histórico
     }
 
     return { success: true, data: result }
   } catch (error) {
-    console.error('❌ Exceção ao salvar análise:', error)
     return { success: false, error }
   }
 }
