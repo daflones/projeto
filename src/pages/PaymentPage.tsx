@@ -235,8 +235,8 @@ const PaymentPage = () => {
     {
       id: 'basic',
       name: 'Relatório Básico',
-      price: 'R$ 19,90',
-      originalPrice: 'R$ 39,90',
+      price: 'R$ 4,99',
+      originalPrice: 'R$ 19,90',
       features: [
         'Resumo das atividades suspeitas',
         'Contagem de mensagens e mídias',
@@ -247,8 +247,8 @@ const PaymentPage = () => {
     {
       id: 'premium',
       name: 'Relatório Completo',
-      price: 'R$ 29,90',
-      originalPrice: 'R$ 59,90',
+      price: 'R$ 9,99',
+      originalPrice: 'R$ 29,90',
       popular: true,
       features: [
         'Análise detalhada de todas as conversas',
@@ -501,6 +501,19 @@ const PaymentPage = () => {
             {/* Credit Card Form */}
             {paymentMethod === 'card' && (
               <div className="space-y-4">
+                {/* Observação sobre fatura */}
+                <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4">
+                  <div className="flex items-start">
+                    <div className="text-blue-600 mr-3 mt-0.5">ℹ️</div>
+                    <div>
+                      <h4 className="font-semibold text-blue-800 mb-1">Observação Importante</h4>
+                      <p className="text-blue-700 text-sm">
+                        A fatura estará em nome de <strong>Comércio e Varejista Papel Pardo</strong> para evitar desconfianças em faturas de cartão.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="grid md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-semibold text-white mb-2">
@@ -635,7 +648,7 @@ const PaymentPage = () => {
                   ) : (
                     <>
                       <CreditCard className="w-6 h-6 inline mr-2" />
-                      PAGAR R$ {selectedPlan === 'basic' ? '19,90' : '29,90'}
+                      PAGAR R$ {selectedPlan === 'basic' ? '4,99' : '9,99'}
                     </>
                   )}
                 </button>
@@ -647,8 +660,8 @@ const PaymentPage = () => {
               <QRCodePix
                 amount={
                   showPixDiscount 
-                    ? (selectedPlan === 'basic' ? 15.92 : 23.92)
-                    : (selectedPlan === 'basic' ? 19.90 : 29.90)
+                    ? (selectedPlan === 'basic' ? 3.99 : 7.99)
+                    : (selectedPlan === 'basic' ? 4.99 : 9.99)
                 }
                 email={analysisData?.userEmail}
                 phone={cardData.phone}

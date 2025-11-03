@@ -47,6 +47,30 @@ export interface Lead {
   origin_page?: string
 }
 
+// Interface para resultados de análise
+export interface AnalysisResult {
+  id?: string
+  whatsapp: string
+  messages_count: number
+  media_count: number
+  contacts_count: number
+  risk_level: 'low' | 'medium' | 'high'
+  analysis_number: number
+  created_at?: string
+  updated_at?: string
+}
+
+// Interface para estatísticas de análise
+export interface AnalysisStats {
+  total_analyses: number
+  latest_analysis_number: number
+  total_messages: number
+  total_media: number
+  total_contacts: number
+  latest_risk_level: 'low' | 'medium' | 'high'
+  last_analysis_date: string
+}
+
 // Função para salvar lead da landing page
 export const saveLead = async (whatsapp: string) => {
   try {
@@ -327,5 +351,174 @@ export const generatePixCode = (amount: number, description: string = 'Detector 
     description,
     merchantName: cleanMerchantName,
     merchantCity: cleanMerchantCity
+  }
+}
+
+// Função para salvar resultados de análise
+export const saveAnalysisResults = async (
+  whatsapp: string,
+  messagesCount: number,
+  mediaCount: number,
+  contactsCount: number,
+  riskLevel: 'low' | 'medium' | 'high'
+) => {
+  try {
+    console.log('💾 Salvando análise:', { whatsapp, messagesCount, mediaCount, contactsCount, riskLevel })
+    
+    // Primeiro, verificar se já existe um registro para este WhatsApp
+    const { data: existingData, error: fetchError } = await supabase
+      .from('analysis_results')
+      .select('*')
+      .eq('whatsapp', whatsapp)
+      .order('analysis_number', { ascending: false })
+      .limit(1)
+
+    if (fetchError) {
+      console.error('Erro ao buscar análises existentes:', fetchError)
+    }
+
+    let result
+    let nextAnalysisNumber
+
+    if (existingData && existingData.length > 0) {
+      // Já existe - fazer UPDATE
+      const existing = existingData[0]
+      nextAnalysisNumber = existing.analysis_number
+      
+      console.log('📝 Atualizando registro existente:', existing.id)
+
+      const { data: updateData, error: updateError } = await supabase
+        .from('analysis_results')
+        .update({
+          messages_count: messagesCount,
+          media_count: mediaCount,
+          contacts_count: contactsCount,
+          risk_level: riskLevel,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', existing.id)
+        .select()
+
+      if (updateError) {
+        console.error('Erro ao atualizar análise:', updateError)
+        return { success: false, error: updateError }
+      }
+
+      result = updateData?.[0]
+      console.log('✅ Análise atualizada com sucesso:', result)
+    } else {
+      // Não existe - fazer INSERT
+      nextAnalysisNumber = 1
+      
+      console.log('🆕 Criando novo registro (primeira análise)')
+
+      const { data: insertData, error: insertError } = await supabase
+        .from('analysis_results')
+        .insert([
+          {
+            whatsapp,
+            messages_count: messagesCount,
+            media_count: mediaCount,
+            contacts_count: contactsCount,
+            risk_level: riskLevel,
+            analysis_number: nextAnalysisNumber
+          }
+        ])
+        .select()
+
+      if (insertError) {
+        console.error('Erro ao inserir análise:', insertError)
+        return { success: false, error: insertError }
+      }
+
+      result = insertData?.[0]
+      console.log('✅ Análise criada com sucesso:', result)
+    }
+
+    // Sempre registrar no histórico
+    const { error: historyError } = await supabase
+      .from('analysis_history')
+      .insert([
+        {
+          whatsapp,
+          messages_count: messagesCount,
+          media_count: mediaCount,
+          contacts_count: contactsCount,
+          risk_level: riskLevel,
+          analysis_number: nextAnalysisNumber
+        }
+      ])
+
+    if (historyError) {
+      console.warn('⚠️ Aviso ao salvar no histórico:', historyError)
+    } else {
+      console.log('📚 Histórico atualizado')
+    }
+
+    return { success: true, data: result }
+  } catch (error) {
+    console.error('❌ Exceção ao salvar análise:', error)
+    return { success: false, error }
+  }
+}
+
+// Função para obter análise atual de um WhatsApp
+export const getAnalysisResults = async (whatsapp: string) => {
+  try {
+    const { data, error } = await supabase
+      .from('analysis_results')
+      .select('*')
+      .eq('whatsapp', whatsapp)
+      .order('analysis_number', { ascending: false })
+      .limit(1)
+
+    if (error) {
+      return { success: false, error }
+    }
+
+    if (data && data.length > 0) {
+      return { success: true, data: data[0] as AnalysisResult }
+    }
+
+    return { success: true, data: null }
+  } catch (error) {
+    return { success: false, error }
+  }
+}
+
+// Função para obter estatísticas de análises de um WhatsApp
+export const getAnalysisStats = async (whatsapp: string) => {
+  try {
+    const { data, error } = await supabase
+      .rpc('get_analysis_stats', {
+        p_whatsapp: whatsapp
+      })
+
+    if (error) {
+      return { success: false, error }
+    }
+
+    return { success: true, data: data?.[0] as AnalysisStats }
+  } catch (error) {
+    return { success: false, error }
+  }
+}
+
+// Função para obter histórico completo de análises
+export const getAnalysisHistory = async (whatsapp: string) => {
+  try {
+    const { data, error } = await supabase
+      .from('analysis_history')
+      .select('*')
+      .eq('whatsapp', whatsapp)
+      .order('analysis_number', { ascending: false })
+
+    if (error) {
+      return { success: false, error }
+    }
+
+    return { success: true, data: data || [] }
+  } catch (error) {
+    return { success: false, error }
   }
 }
