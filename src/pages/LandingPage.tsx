@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Search, Shield, AlertTriangle, Heart } from 'lucide-react'
+import { Search, Shield, AlertTriangle } from 'lucide-react'
 import { saveLead } from '../services/supabase'
 
 interface FormData {
@@ -113,9 +113,9 @@ const LandingPage = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
+    <div className="min-h-screen bg-gradient-to-b from-red-50 to-white">
       {/* Hero Section */}
-      <div className="bg-white">
+      <div className="bg-gradient-to-b from-red-50 via-pink-50 to-white">
         <div className="container mx-auto px-4 py-16">
           <div className="text-center max-w-5xl mx-auto">
             <div className="flex justify-center mb-6">
@@ -125,8 +125,8 @@ const LandingPage = () => {
             </div>
             
             <h1 className="text-4xl md:text-6xl font-black mb-6 leading-tight text-gray-900" style={{ fontFamily: "'Montserrat', sans-serif" }}>
-              ⚠️ DESCUBRA SE SEU PARCEIRO<br />
-              <span className="text-red-600">ESTÁ TE TRAINDO!</span> ⚠️
+              DESCUBRA SE SEU PARCEIRO<br />
+              <span className="text-red-600">ESTÁ TE TRAINDO!</span>
             </h1>
             
             <p className="text-xl md:text-2xl mb-10 text-gray-700 font-semibold" style={{ fontFamily: "'Poppins', sans-serif" }}>

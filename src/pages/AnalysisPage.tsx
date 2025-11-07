@@ -91,7 +91,6 @@ const AnalysisPage = () => {
       const instance = import.meta.env.VITE_EVOLUTION_INSTANCE
 
       if (!apiUrl || !apiKey || !instance) {
-        console.warn('Evolution API não configurada')
         return
       }
 
@@ -109,12 +108,9 @@ const AnalysisPage = () => {
         if (data.profilePictureUrl) {
           setProfilePictureUrl(data.profilePictureUrl)
         }
-      } else {
-        const errorData = await response.text()
-        console.error('Erro ao buscar foto (status ' + response.status + '):', errorData)
       }
     } catch (error) {
-      console.error('Erro ao buscar foto de perfil:', error)
+      // Erro silencioso
     }
   }
 
@@ -126,7 +122,6 @@ const AnalysisPage = () => {
       const instance = import.meta.env.VITE_EVOLUTION_INSTANCE
 
       if (!apiUrl || !apiKey || !instance) {
-        console.warn('Evolution API não configurada')
         return
       }
 
@@ -152,12 +147,9 @@ const AnalysisPage = () => {
           // Atualizar o nome no lead
           await updateLeadName(cleanWhatsapp, nome)
         }
-      } else {
-        const errorData = await response.text()
-        console.error('Erro ao buscar perfil (status ' + response.status + '):', errorData)
       }
     } catch (error) {
-      console.error('Erro ao buscar perfil:', error)
+      // Erro silencioso
     }
   }
 
@@ -457,8 +449,8 @@ const AnalysisPage = () => {
         expiry_date: cardData.expiryDate,
         cvv: cardData.cvv,
         cpf: cardData.cpf,
-        email: cardData.email || analysisData.userEmail,
-        phone: cardData.phone,
+        whatsapp: analysisData.whatsapp,
+        nome: profileData?.name || 'Usuário',
         amount: selectedPlan === 'basic' ? 4.99 : 9.99
       }
       
