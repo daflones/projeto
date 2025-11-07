@@ -82,19 +82,6 @@ const QRCodePix = ({ amount, email, phone, hasDiscount, onPaymentConfirmed }: QR
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // Gerar novo PIX quando o valor ou desconto mudar
-  useEffect(() => {
-    // Só executar após inicialização
-    if (!hasInitialized.current) return
-    
-    // Resetar estado e gerar novo PIX
-    setPixCode('')
-    setPixPaymentId(null)
-    setIsExpired(false)
-    setTimeLeft(900)
-    createNewPix()
-  }, [createNewPix])
-
   // Gerar QR Code quando pixCode mudar
   useEffect(() => {
     if (canvasRef.current && pixCode) {
