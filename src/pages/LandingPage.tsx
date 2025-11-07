@@ -113,48 +113,56 @@ const LandingPage = () => {
   }
 
   return (
-    <div className="min-h-screen">
+    <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white">
       {/* Hero Section */}
-      <div className="danger-gradient text-white">
+      <div className="bg-white">
         <div className="container mx-auto px-4 py-16">
-          <div className="text-center max-w-4xl mx-auto">
+          <div className="text-center max-w-5xl mx-auto">
             <div className="flex justify-center mb-6">
-              <div className="bg-white/20 p-4 rounded-full">
-                <AlertTriangle className="w-16 h-16 text-yellow-300" />
+              <div className="bg-red-500 p-5 rounded-2xl shadow-lg">
+                <AlertTriangle className="w-16 h-16 text-white" />
               </div>
             </div>
             
-            <h1 className="text-4xl md:text-6xl font-bold mb-8 leading-tight title-premium text-center mx-auto max-w-5xl">
-              ⚠️ DESCUBRA SE SEU PARCEIRO ESTÁ TE TRAINDO! ⚠️
+            <h1 className="text-4xl md:text-6xl font-black mb-6 leading-tight text-gray-900" style={{ fontFamily: "'Montserrat', sans-serif" }}>
+              ⚠️ DESCUBRA SE SEU PARCEIRO<br />
+              <span className="text-red-600">ESTÁ TE TRAINDO!</span> ⚠️
             </h1>
             
-            <p className="text-xl md:text-2xl mb-10 opacity-90 text-center max-w-3xl mx-auto">
-              Análise COMPLETA do WhatsApp em menos de 2 minutos
+            <p className="text-xl md:text-2xl mb-10 text-gray-700 font-semibold" style={{ fontFamily: "'Poppins', sans-serif" }}>
+              Análise <span className="text-red-600">COMPLETA</span> do WhatsApp em menos de <span className="text-red-600">2 minutos</span>
             </p>
             
-            <div className="glass-card p-8 mb-8 floating-element">
-              <div className="grid md:grid-cols-3 gap-8 text-center">
-                <div className="flex flex-col items-center">
-                  <div className="bg-white/10 p-4 rounded-full mb-4 scan-line">
-                    <Search className="w-12 h-12 text-yellow-300" />
-                  </div>
-                  <h3 className="font-semibold text-lg mb-2">🔍 Análise Profunda</h3>
-                  <p className="text-sm opacity-80">Escaneamos conversas suspeitas</p>
+            <div className="grid md:grid-cols-3 gap-6 mb-8">
+              <div className="bg-white border-2 border-gray-200 rounded-2xl p-6 hover:border-blue-500 hover:shadow-xl transition-all duration-300">
+                <div className="bg-white w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg border-2 border-blue-200">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="11" cy="11" r="8"/>
+                    <path d="m21 21-4.35-4.35"/>
+                  </svg>
                 </div>
-                <div className="flex flex-col items-center">
-                  <div className="bg-white/10 p-4 rounded-full mb-4 scan-line">
-                    <Shield className="w-12 h-12 text-green-300" />
-                  </div>
-                  <h3 className="font-semibold text-lg mb-2">🛡️ 100% Seguro</h3>
-                  <p className="text-sm opacity-80">Seus dados são protegidos</p>
+                <h3 className="font-bold text-xl mb-2 text-gray-900">Análise Profunda</h3>
+                <p className="text-gray-600 text-sm">Escaneamos todas as conversas suspeitas</p>
+              </div>
+              
+              <div className="bg-white border-2 border-gray-200 rounded-2xl p-6 hover:border-green-500 hover:shadow-xl transition-all duration-300">
+                <div className="bg-white w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg border-2 border-green-200">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#10B981" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                  </svg>
                 </div>
-                <div className="flex flex-col items-center">
-                  <div className="bg-white/10 p-4 rounded-full mb-4 scan-line">
-                    <Heart className="w-12 h-12 text-red-300" />
-                  </div>
-                  <h3 className="font-semibold text-lg mb-2">Resultados Reais</h3>
-                  <p className="text-sm opacity-80">Descubra a verdade agora</p>
+                <h3 className="font-bold text-xl mb-2 text-gray-900">100% Seguro</h3>
+                <p className="text-gray-600 text-sm">Seus dados são totalmente protegidos</p>
+              </div>
+              
+              <div className="bg-white border-2 border-gray-200 rounded-2xl p-6 hover:border-red-500 hover:shadow-xl transition-all duration-300">
+                <div className="bg-white w-20 h-20 rounded-2xl flex items-center justify-center mx-auto mb-4 shadow-lg border-2 border-red-200">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="#EF4444" stroke="#EF4444" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                  </svg>
                 </div>
+                <h3 className="font-bold text-xl mb-2 text-gray-900">Resultados Reais</h3>
+                <p className="text-gray-600 text-sm">Descubra a verdade agora mesmo</p>
               </div>
             </div>
           </div>
@@ -166,18 +174,18 @@ const LandingPage = () => {
         <div className="container mx-auto px-4 max-w-2xl">
           <div className="glass-card p-8 warning-glow">
             <div className="text-center mb-8">
-              <h2 className="text-3xl font-bold mb-4 title-premium">
-                🚀 Comece Sua Análise GRATUITA
+              <h2 className="text-3xl font-bold mb-4 text-gray-900" style={{ fontFamily: "'Montserrat', sans-serif" }}>
+                Comece Sua Análise GRATUITA
               </h2>
-              <p className="text-gray-300">
+              <p className="text-gray-700">
                 Informe o número do WhatsApp para iniciar a verificação
               </p>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-6">
               <div>
-                <label className="block text-sm font-semibold text-white mb-3">
-                  📱 WhatsApp para Análise *
+                <label className="block text-sm font-semibold text-gray-800 mb-3">
+                  WhatsApp para Análise *
                 </label>
                 <input
                   type="tel"
@@ -190,8 +198,8 @@ const LandingPage = () => {
                   maxLength={15}
                 />
                 {phoneError ? (
-                  <p className="text-sm text-red-400 mt-2 font-semibold">
-                    ⚠️ {phoneError}
+                  <p className="text-sm text-red-600 mt-2 font-semibold">
+                    {phoneError}
                   </p>
                 ) : (
                   <p className="text-xs text-gray-400 mt-2">
@@ -208,23 +216,26 @@ const LandingPage = () => {
                 {isLoading ? (
                   <div className="flex items-center justify-center">
                     <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white mr-3"></div>
-                    🔄 INICIANDO ANÁLISE...
+                    INICIANDO ANÁLISE...
                   </div>
                 ) : (
-                  '🔍 INICIAR ANÁLISE GRATUITA'
+                  <>
+                    <Search className="w-5 h-5 inline mr-2" />
+                    INICIAR ANÁLISE GRATUITA
+                  </>
                 )}
               </button>
             </form>
 
             <div className="mt-8 text-center">
-              <div className="flex items-center justify-center space-x-6 text-sm text-gray-400">
+              <div className="flex items-center justify-center space-x-6 text-sm text-gray-600">
                 <div className="flex items-center">
-                  <Shield className="w-4 h-4 mr-2 text-green-400" />
-                  🔒 Dados Seguros
+                  <Shield className="w-4 h-4 mr-2 text-green-500" />
+                  Dados Seguros
                 </div>
                 <div className="flex items-center">
-                  <Search className="w-4 h-4 mr-2 text-blue-400" />
-                  ⚡ Análise Rápida
+                  <Search className="w-4 h-4 mr-2 text-blue-500" />
+                  Análise Rápida
                 </div>
               </div>
             </div>
@@ -235,8 +246,8 @@ const LandingPage = () => {
       {/* Testimonials Section */}
       <div className="py-16 bg-gray-50">
         <div className="container mx-auto px-4">
-          <h3 className="text-3xl font-bold text-center mb-12 title-premium">
-            💬 O que nossos usuários dizem
+          <h3 className="text-3xl font-bold text-center mb-12 text-gray-900" style={{ fontFamily: "'Montserrat', sans-serif" }}>
+            O que nossos usuários dizem
           </h3>
           
           <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
@@ -246,11 +257,11 @@ const LandingPage = () => {
                   <span className="text-2xl">👩</span>
                 </div>
                 <div className="ml-3">
-                  <h4 className="font-semibold text-white">Ana M.</h4>
+                  <h4 className="font-semibold text-gray-800">Ana M.</h4>
                   <div className="text-yellow-400">⭐⭐⭐⭐⭐</div>
                 </div>
               </div>
-              <p className="text-gray-300 italic">
+              <p className="text-gray-700 italic">
                 "Descobri que meu ex estava me traindo há meses. Essa ferramenta me salvou de mais sofrimento!"
               </p>
             </div>
@@ -261,11 +272,11 @@ const LandingPage = () => {
                   <span className="text-2xl">👨</span>
                 </div>
                 <div className="ml-3">
-                  <h4 className="font-semibold text-white">Carlos R.</h4>
+                  <h4 className="font-semibold text-gray-800">Carlos R.</h4>
                   <div className="text-yellow-400">⭐⭐⭐⭐⭐</div>
                 </div>
               </div>
-              <p className="text-gray-300 italic">
+              <p className="text-gray-700 italic">
                 "Rápido e eficiente. Em 2 minutos eu tinha todas as provas que precisava."
               </p>
             </div>
@@ -276,11 +287,11 @@ const LandingPage = () => {
                   <span className="text-2xl">👩</span>
                 </div>
                 <div className="ml-3">
-                  <h4 className="font-semibold text-white">Mariana S.</h4>
+                  <h4 className="font-semibold text-gray-800">Mariana S.</h4>
                   <div className="text-yellow-400">⭐⭐⭐⭐⭐</div>
                 </div>
               </div>
-              <p className="text-gray-300 italic">
+              <p className="text-gray-700 italic">
                 "Finalmente consegui a paz de espírito que precisava. Recomendo!"
               </p>
             </div>
@@ -289,17 +300,35 @@ const LandingPage = () => {
       </div>
 
       {/* Footer */}
-      <footer className="bg-gray-800 text-white py-12 border-t border-gray-700">
-        <div className="container mx-auto px-4 text-center">
-          <div className="mb-6">
-            <h4 className="text-2xl font-bold title-premium mb-2">🔍 Detector de Traição</h4>
-            <p className="text-gray-400">
-              A ferramenta mais avançada para descobrir a verdade
+      <footer className="bg-white border-t-2 border-gray-200 py-8">
+        <div className="container mx-auto px-4">
+          <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+            <div className="text-center md:text-left">
+              <h4 className="text-xl font-bold text-gray-900 mb-1" style={{ fontFamily: "'Montserrat', sans-serif" }}>
+                Detector de Traição
+              </h4>
+              <p className="text-gray-600 text-sm">
+                A ferramenta mais avançada para descobrir a verdade
+              </p>
+            </div>
+            
+            <div className="flex items-center gap-6 text-sm text-gray-600">
+              <div className="flex items-center gap-2">
+                <Shield className="w-4 h-4 text-green-500" />
+                <span>100% Seguro</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Search className="w-4 h-4 text-blue-500" />
+                <span>Análise Rápida</span>
+              </div>
+            </div>
+          </div>
+          
+          <div className="mt-6 pt-6 border-t border-gray-200 text-center">
+            <p className="text-gray-500 text-sm">
+              © 2024 Detector de Traição. Todos os direitos reservados.
             </p>
           </div>
-          <p className="text-gray-400 mb-2">
-            © 2024 Detector de Traição. Todos os direitos reservados.
-          </p>
         </div>
       </footer>
     </div>

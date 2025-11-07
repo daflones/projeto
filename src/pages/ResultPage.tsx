@@ -122,16 +122,16 @@ MÍDIAS ENCONTRADAS:
 
   if (!finalResults || !analysisData) {
     return (
-      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <div className="text-white text-2xl">Carregando resultados...</div>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-gray-900 text-2xl">Carregando resultados...</div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-black">
+    <div className="min-h-screen bg-gray-50">
       {/* Header Moderno */}
-      <div className="bg-gradient-to-r from-red-600 via-red-700 to-purple-900 text-white shadow-2xl">
+      <div className="danger-gradient text-white shadow-2xl">
         <div className="container mx-auto px-4 py-10">
           <div className="max-w-6xl mx-auto">
             <div className="flex items-center justify-between mb-8">
@@ -204,7 +204,7 @@ MÍDIAS ENCONTRADAS:
                 </div>
               </div>
               
-              <h2 className="text-5xl font-bold mb-6 title-premium">
+              <h2 className="text-5xl font-bold mb-6 text-gray-900">
                 Pontuação de Risco: {finalResults.riskScore}/100
               </h2>
               
@@ -216,7 +216,7 @@ MÍDIAS ENCONTRADAS:
                 {getRiskText(finalResults.riskLevel)}
               </div>
               
-              <p className="text-gray-300 text-xl max-w-3xl mx-auto">
+              <p className="text-gray-700 text-xl max-w-3xl mx-auto">
                 {finalResults.riskLevel === 'high' 
                   ? '🚨 Foram encontradas evidências significativas de comportamento suspeito que merecem atenção imediata.'
                   : '⚠️ Algumas atividades suspeitas foram identificadas, mas podem ter explicações inocentes.'
@@ -226,11 +226,11 @@ MÍDIAS ENCONTRADAS:
 
             {/* Progress Bar */}
             <div className="mt-10">
-              <div className="flex justify-between text-xl text-white mb-4">
+              <div className="flex justify-between text-xl text-gray-900 mb-4">
                 <span className="font-bold">Nível de Suspeita</span>
                 <span className="font-bold text-red-300">{finalResults.riskScore}%</span>
               </div>
-              <div className="w-full bg-gray-800/50 rounded-full h-8 overflow-hidden border-2 border-white/20">
+              <div className="w-full bg-gray-200 rounded-full h-8 overflow-hidden border-2 border-gray-300">
                 <div 
                   className={`h-full rounded-full transition-all duration-1000 relative flex items-center justify-end pr-3 ${
                     finalResults.riskScore >= 80 ? 'bg-gradient-to-r from-red-500 via-red-600 to-red-700' :
@@ -240,10 +240,10 @@ MÍDIAS ENCONTRADAS:
                   style={{ width: `${finalResults.riskScore}%` }}
                 >
                   <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
-                  <span className="relative z-10 text-white font-bold text-sm">{finalResults.riskScore}%</span>
+                  <span className="relative z-10 text-white font-bold text-sm drop-shadow-lg">{finalResults.riskScore}%</span>
                 </div>
               </div>
-              <div className="flex justify-between text-sm text-gray-300 mt-3 font-semibold">
+              <div className="flex justify-between text-sm text-gray-600 mt-3 font-semibold">
                 <span>0% Baixo</span>
                 <span>50% Médio</span>
                 <span>100% Alto</span>
@@ -260,8 +260,8 @@ MÍDIAS ENCONTRADAS:
               <div className="text-4xl font-bold text-red-400 mb-2">
                 {finalResults.detailedMessages.length}
               </div>
-              <div className="text-white font-semibold mb-1">Mensagens Suspeitas</div>
-              <div className="text-gray-400 text-sm">Detectadas</div>
+              <div className="text-gray-800 font-semibold mb-1">Mensagens Suspeitas</div>
+              <div className="text-gray-600 text-sm">Detectadas</div>
             </div>
             
             <div className="glass-card p-6 text-center floating-element">
@@ -271,8 +271,8 @@ MÍDIAS ENCONTRADAS:
               <div className="text-4xl font-bold text-orange-400 mb-2">
                 {finalResults.mediaAnalysis.photos + finalResults.mediaAnalysis.videos}
               </div>
-              <div className="text-white font-semibold mb-1">Mídias Suspeitas</div>
-              <div className="text-gray-400 text-sm">Encontradas</div>
+              <div className="text-gray-800 font-semibold mb-1">Mídias Suspeitas</div>
+              <div className="text-gray-600 text-sm">Encontradas</div>
             </div>
             
             <div className="glass-card p-6 text-center floating-element">
@@ -282,8 +282,8 @@ MÍDIAS ENCONTRADAS:
               <div className="text-4xl font-bold text-purple-400 mb-2">
                 {finalResults.suspiciousContacts.length}
               </div>
-              <div className="text-white font-semibold mb-1">Contatos Suspeitos</div>
-              <div className="text-gray-400 text-sm">Identificados</div>
+              <div className="text-gray-800 font-semibold mb-1">Contatos Suspeitos</div>
+              <div className="text-gray-600 text-sm">Identificados</div>
             </div>
             
             <div className="glass-card p-6 text-center floating-element">
@@ -293,8 +293,8 @@ MÍDIAS ENCONTRADAS:
               <div className="text-4xl font-bold text-blue-400 mb-2">
                 {finalResults.mediaAnalysis.deletedMedia}
               </div>
-              <div className="text-white font-semibold mb-1">Itens Deletados</div>
-              <div className="text-gray-400 text-sm">Recuperados</div>
+              <div className="text-gray-800 font-semibold mb-1">Itens Deletados</div>
+              <div className="text-gray-600 text-sm">Recuperados</div>
             </div>
           </div>
 
@@ -309,8 +309,8 @@ MÍDIAS ENCONTRADAS:
                     : 'bg-gray-800 border-gray-700 hover:bg-gray-700'
                 }`}
               >
-                <MessageCircle className={`w-6 h-6 ${activeTab === 'messages' ? 'text-white' : 'text-gray-300'}`} />
-                <span className={activeTab === 'messages' ? 'text-white' : 'text-gray-300 hover:text-white'}>Mensagens</span>
+                <MessageCircle className={`w-6 h-6 ${activeTab === 'messages' ? 'text-white' : 'text-gray-700'}`} />
+                <span className={activeTab === 'messages' ? 'text-white' : 'text-gray-700 hover:text-gray-900'}>Mensagens</span>
               </button>
 
               <button
@@ -321,8 +321,8 @@ MÍDIAS ENCONTRADAS:
                     : 'bg-gray-800 border-gray-700 hover:bg-gray-700'
                 }`}
               >
-                <Users className={`w-6 h-6 ${activeTab === 'contacts' ? 'text-white' : 'text-gray-300'}`} />
-                <span className={activeTab === 'contacts' ? 'text-white' : 'text-gray-300 hover:text-white'}>Contatos</span>
+                <Users className={`w-6 h-6 ${activeTab === 'contacts' ? 'text-white' : 'text-gray-700'}`} />
+                <span className={activeTab === 'contacts' ? 'text-white' : 'text-gray-700 hover:text-gray-900'}>Contatos</span>
               </button>
 
               <button
@@ -333,8 +333,8 @@ MÍDIAS ENCONTRADAS:
                     : 'bg-gray-800 border-gray-700 hover:bg-gray-700'
                 }`}
               >
-                <Image className={`w-6 h-6 ${activeTab === 'media' ? 'text-white' : 'text-gray-300'}`} />
-                <span className={activeTab === 'media' ? 'text-white' : 'text-gray-300 hover:text-white'}>Mídias</span>
+                <Image className={`w-6 h-6 ${activeTab === 'media' ? 'text-white' : 'text-gray-700'}`} />
+                <span className={activeTab === 'media' ? 'text-white' : 'text-gray-700 hover:text-gray-900'}>Mídias</span>
               </button>
 
               <button
@@ -345,36 +345,36 @@ MÍDIAS ENCONTRADAS:
                     : 'bg-gray-800 border-gray-700 hover:bg-gray-700'
                 }`}
               >
-                <CheckCircle className={`w-6 h-6 ${activeTab === 'recommendations' ? 'text-white' : 'text-gray-300'}`} />
-                <span className={activeTab === 'recommendations' ? 'text-white' : 'text-gray-300 hover:text-white'}>Recomendações</span>
+                <CheckCircle className={`w-6 h-6 ${activeTab === 'recommendations' ? 'text-white' : 'text-gray-700'}`} />
+                <span className={activeTab === 'recommendations' ? 'text-white' : 'text-gray-700 hover:text-gray-900'}>Recomendações</span>
               </button>
             </div>
             
             <div className="glass-card p-10">
               {activeTab === 'messages' && (
                 <div>
-                  <h3 className="text-4xl font-bold text-white mb-4">
+                  <h3 className="text-4xl font-bold text-gray-900 mb-4">
                     💬 Mensagens Suspeitas Detectadas
                   </h3>
-                  <p className="text-gray-300 text-xl mb-10">
+                  <p className="text-gray-700 text-xl mb-10">
                     Encontramos <span className="text-red-400 font-bold text-2xl">{finalResults.detailedMessages.length}</span> mensagens comprometedoras
                   </p>
                   
                   <div className="grid gap-6">
                     {finalResults.detailedMessages.map((message: string, index: number) => (
-                      <div key={index} className="bg-gray-800/50 border-2 border-red-500/30 rounded-2xl p-6 hover:border-red-500/60 transition-all">
+                      <div key={index} className="bg-white border-2 border-red-500/30 rounded-2xl p-6 hover:border-red-500/60 transition-all shadow-sm">
                         <div className="flex items-start gap-5">
                           <div className="flex-shrink-0 w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center border-2 border-red-500/40">
                             <MessageCircle className="w-6 h-6 text-red-400" />
                           </div>
                           <div className="flex-1">
-                            <div className="bg-red-900/20 border-l-4 border-red-500 rounded-r-xl p-5 mb-4">
-                              <p className="text-white font-semibold text-xl leading-relaxed">
+                            <div className="bg-red-50 border-l-4 border-red-500 rounded-r-xl p-5 mb-4">
+                              <p className="text-gray-900 font-semibold text-xl leading-relaxed">
                                 "{message}"
                               </p>
                             </div>
                             <div className="flex items-center gap-3 text-sm">
-                              <span className="text-gray-400">
+                              <span className="text-gray-600">
                                 🕒 {new Date().toLocaleDateString('pt-BR')} às {Math.floor(Math.random() * 24).toString().padStart(2, '0')}:{Math.floor(Math.random() * 60).toString().padStart(2, '0')}
                               </span>
                               <span className="bg-red-600 text-white px-4 py-1.5 rounded-full font-bold text-xs">
@@ -391,10 +391,10 @@ MÍDIAS ENCONTRADAS:
 
               {activeTab === 'contacts' && (
                 <div>
-                  <h3 className="text-4xl font-bold text-white mb-8">
+                  <h3 className="text-4xl font-bold text-gray-900 mb-8">
                     📞 Contatos Suspeitos Identificados
                   </h3>
-                  <p className="text-gray-300 text-lg mb-8">
+                  <p className="text-gray-700 text-lg mb-8">
                     Encontramos {finalResults.suspiciousContacts.length} contatos com comportamento suspeito:
                   </p>
                   
@@ -407,7 +407,7 @@ MÍDIAS ENCONTRADAS:
                               <Phone className="w-10 h-10 text-purple-200" />
                             </div>
                             <div>
-                              <h4 className="font-bold text-white text-2xl mb-2">{contact.name}</h4>
+                              <h4 className="font-bold text-gray-900 text-2xl mb-2">{contact.name}</h4>
                               <p className="text-purple-100 text-xl font-mono bg-purple-900/30 px-4 py-2 rounded-lg inline-block">
                                 {contact.number}
                               </p>
@@ -429,7 +429,7 @@ MÍDIAS ENCONTRADAS:
 
               {activeTab === 'media' && (
                 <div>
-                  <h3 className="text-2xl font-bold text-white mb-6">
+                  <h3 className="text-2xl font-bold text-gray-900 mb-6">
                     📸 Análise Detalhada de Mídias
                   </h3>
                   
@@ -505,10 +505,10 @@ MÍDIAS ENCONTRADAS:
 
               {activeTab === 'recommendations' && (
                 <div>
-                  <h3 className="text-4xl font-bold text-white mb-8">
+                  <h3 className="text-4xl font-bold text-gray-900 mb-8">
                     ✅ Recomendações Personalizadas
                   </h3>
-                  <p className="text-gray-300 text-lg mb-8">
+                  <p className="text-gray-700 text-lg mb-8">
                     Com base na análise, sugerimos os seguintes passos:
                   </p>
                   
@@ -520,10 +520,10 @@ MÍDIAS ENCONTRADAS:
                             <CheckCircle className="w-7 h-7 text-green-200" />
                           </div>
                           <div className="flex-1">
-                            <h4 className="font-bold text-white text-xl mb-2">
+                            <h4 className="font-bold text-gray-900 text-xl mb-2">
                               Recomendação {index + 1}
                             </h4>
-                            <p className="text-green-100 text-lg">{recommendation}</p>
+                            <p className="text-gray-700 text-lg">{recommendation}</p>
                           </div>
                         </div>
                       </div>
@@ -560,10 +560,10 @@ MÍDIAS ENCONTRADAS:
 
           {/* Footer Actions */}
           <div className="glass-card p-12 text-center">
-            <h3 className="text-4xl font-bold text-white mb-6">
+            <h3 className="text-4xl font-bold text-gray-900 mb-6">
               Deseja Fazer Outra Análise?
             </h3>
-            <p className="text-gray-300 mb-10 text-xl">
+            <p className="text-gray-700 mb-10 text-xl">
               Analise outro número de WhatsApp e descubra a verdade.
             </p>
             <div className="flex justify-center">

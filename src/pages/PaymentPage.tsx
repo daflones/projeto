@@ -236,7 +236,7 @@ const PaymentPage = () => {
       id: 'basic',
       name: 'Relatório Básico',
       price: 'R$ 4,99',
-      originalPrice: 'R$ 19,90',
+      originalPrice: 'R$ 9,99',
       features: [
         'Resumo das atividades suspeitas',
         'Contagem de mensagens e mídias',
@@ -248,7 +248,7 @@ const PaymentPage = () => {
       id: 'premium',
       name: 'Relatório Completo',
       price: 'R$ 9,99',
-      originalPrice: 'R$ 29,90',
+      originalPrice: 'R$ 19,99',
       popular: true,
       features: [
         'Análise detalhada de todas as conversas',
@@ -398,101 +398,142 @@ const PaymentPage = () => {
               <h3 className="text-2xl font-bold mb-2 title-premium">
                 🔓 Liberar Relatório Agora
               </h3>
-              <p className="text-gray-300">
+              <p className="text-gray-700">
                 Pagamento 100% seguro • Acesso imediato
               </p>
             </div>
 
-            {/* Payment Method Tabs */}
-            <div className="grid grid-cols-2 gap-4 mb-8">
+            {/* Payment Method Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+              {/* Cartão de Crédito */}
               <button
                 onClick={() => setPaymentMethod('card')}
                 className={`relative overflow-hidden group transition-all duration-300 outline-none focus:outline-none active:outline-none ${
                   paymentMethod === 'card'
-                    ? 'transform scale-105'
-                    : 'hover:scale-102'
+                    ? 'transform scale-[1.02]'
+                    : 'hover:scale-[1.01]'
                 }`}
               >
-                <div className={`relative p-6 rounded-xl border-2 transition-all duration-300 ${
+                <div className={`relative p-8 rounded-2xl border-3 transition-all duration-300 ${
                   paymentMethod === 'card'
-                    ? 'bg-gradient-to-br from-red-600 via-red-700 to-purple-800 border-red-500 shadow-2xl shadow-red-500/50'
-                    : 'bg-gray-900 border-gray-600 hover:border-red-500/50 hover:bg-gray-800'
+                    ? 'bg-white border-red-500 shadow-2xl shadow-red-500/30'
+                    : 'bg-white/95 border-gray-200 hover:border-red-300 hover:shadow-lg'
                 }`}>
-                  <div className="flex items-center space-x-4">
-                    <CreditCard className={`w-8 h-8 ${
+                  {/* Badge de selecionado */}
+                  {paymentMethod === 'card' && (
+                    <div className="absolute top-4 right-4">
+                      <div className="bg-red-500 text-white p-2 rounded-full">
+                        <CheckCircle className="w-5 h-5" />
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Ícone e conteúdo */}
+                  <div className="flex flex-col items-center text-center space-y-4">
+                    <div className={`p-4 rounded-2xl transition-all duration-300 ${
                       paymentMethod === 'card'
-                        ? 'text-gray-900'
-                        : 'text-gray-300'
-                    }`} />
-                    <div className="flex-1 text-left">
-                      <div className={`font-bold text-lg mb-1 ${
+                        ? 'bg-gradient-to-br from-red-500 to-red-600 shadow-lg shadow-red-500/50'
+                        : 'bg-gray-100 group-hover:bg-red-50'
+                    }`}>
+                      <CreditCard className={`w-10 h-10 ${
+                        paymentMethod === 'card'
+                          ? 'text-white'
+                          : 'text-gray-700 group-hover:text-red-600'
+                      }`} />
+                    </div>
+                    
+                    <div>
+                      <h3 className={`font-bold text-xl mb-2 ${
                         paymentMethod === 'card'
                           ? 'text-gray-900'
-                          : 'text-gray-200'
+                          : 'text-gray-800'
                       }`}>
                         Cartão de Crédito
-                      </div>
-                      <div className={`text-xs ${
-                        paymentMethod === 'card'
-                          ? 'text-gray-700'
-                          : 'text-gray-400'
-                      }`}>
+                      </h3>
+                      <p className="text-sm text-gray-600 mb-3">
                         Visa • Mastercard • Elo
+                      </p>
+                      <div className="flex items-center justify-center gap-2 text-xs text-gray-500">
+                        <Shield className="w-4 h-4" />
+                        <span>Pagamento seguro</span>
                       </div>
                     </div>
                   </div>
-                  {showPixDiscount && paymentMethod !== 'card' && (
-                    <div className="absolute top-2 right-2">
-                      <div className="text-xs bg-orange-500 text-white px-2 py-1 rounded-full font-bold animate-pulse">
-                        20% OFF no PIX
-                      </div>
-                    </div>
+                  
+                  {/* Borda animada quando selecionado */}
+                  {paymentMethod === 'card' && (
+                    <div className="absolute inset-0 rounded-2xl border-2 border-red-500 animate-pulse pointer-events-none"></div>
                   )}
                 </div>
               </button>
 
+              {/* PIX */}
               <button
                 onClick={() => setPaymentMethod('pix')}
                 className={`relative overflow-hidden group transition-all duration-300 outline-none focus:outline-none active:outline-none ${
                   paymentMethod === 'pix'
-                    ? 'transform scale-105'
-                    : 'hover:scale-102'
+                    ? 'transform scale-[1.02]'
+                    : 'hover:scale-[1.01]'
                 }`}
               >
-                <div className={`relative p-6 rounded-xl border-2 transition-all duration-300 ${
+                <div className={`relative p-8 rounded-2xl border-3 transition-all duration-300 ${
                   paymentMethod === 'pix'
-                    ? 'bg-gradient-to-br from-green-600 via-emerald-600 to-teal-700 border-green-500 shadow-2xl shadow-green-500/50'
-                    : 'bg-gray-900 border-gray-600 hover:border-green-500/50 hover:bg-gray-800'
+                    ? 'bg-white border-green-500 shadow-2xl shadow-green-500/30'
+                    : 'bg-white/95 border-gray-200 hover:border-green-300 hover:shadow-lg'
                 }`}>
-                  <div className="flex items-center space-x-4">
-                    <Smartphone className={`w-8 h-8 ${
-                      paymentMethod === 'pix'
-                        ? 'text-gray-900'
-                        : 'text-gray-300'
-                    }`} />
-                    <div className="flex-1 text-left">
-                      <div className={`font-bold text-lg mb-1 ${
-                        paymentMethod === 'pix'
-                          ? 'text-gray-900'
-                          : 'text-gray-200'
-                      }`}>
-                        PIX
-                      </div>
-                      <div className={`text-xs ${
-                        paymentMethod === 'pix'
-                          ? 'text-gray-700'
-                          : 'text-gray-400'
-                      }`}>
-                        {showPixDiscount ? 'Com 20% de desconto' : 'Pagamento instantâneo'}
-                      </div>
-                    </div>
-                  </div>
-                  {showPixDiscount && paymentMethod === 'pix' && (
-                    <div className="absolute top-2 right-2">
-                      <div className="text-xs bg-yellow-400 text-gray-900 px-2 py-1 rounded-full font-bold">
+                  {/* Badge de desconto */}
+                  {showPixDiscount && (
+                    <div className="absolute top-4 right-4">
+                      <div className="bg-gradient-to-r from-yellow-400 to-orange-500 text-gray-900 px-3 py-1.5 rounded-full font-bold text-xs shadow-lg animate-pulse">
                         20% OFF
                       </div>
                     </div>
+                  )}
+                  
+                  {/* Badge de selecionado */}
+                  {paymentMethod === 'pix' && !showPixDiscount && (
+                    <div className="absolute top-4 right-4">
+                      <div className="bg-green-500 text-white p-2 rounded-full">
+                        <CheckCircle className="w-5 h-5" />
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Ícone e conteúdo */}
+                  <div className="flex flex-col items-center text-center space-y-4">
+                    <div className={`p-4 rounded-2xl transition-all duration-300 ${
+                      paymentMethod === 'pix'
+                        ? 'bg-gradient-to-br from-green-500 to-emerald-600 shadow-lg shadow-green-500/50'
+                        : 'bg-gray-100 group-hover:bg-green-50'
+                    }`}>
+                      <Smartphone className={`w-10 h-10 ${
+                        paymentMethod === 'pix'
+                          ? 'text-white'
+                          : 'text-gray-700 group-hover:text-green-600'
+                      }`} />
+                    </div>
+                    
+                    <div>
+                      <h3 className={`font-bold text-xl mb-2 ${
+                        paymentMethod === 'pix'
+                          ? 'text-gray-900'
+                          : 'text-gray-800'
+                      }`}>
+                        PIX
+                      </h3>
+                      <p className="text-sm text-gray-600 mb-3">
+                        {showPixDiscount ? 'Aprovação instantânea' : 'Pagamento instantâneo'}
+                      </p>
+                      <div className="flex items-center justify-center gap-2 text-xs text-gray-500">
+                        <Clock className="w-4 h-4" />
+                        <span>Confirmação imediata</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* Borda animada quando selecionado */}
+                  {paymentMethod === 'pix' && (
+                    <div className="absolute inset-0 rounded-2xl border-2 border-green-500 animate-pulse pointer-events-none"></div>
                   )}
                 </div>
               </button>

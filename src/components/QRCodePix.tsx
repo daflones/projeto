@@ -170,13 +170,13 @@ const QRCodePix = ({ amount, email, phone, hasDiscount, onPaymentConfirmed }: QR
         <h3 className="text-2xl font-bold mb-2 title-premium">
           💳 Pagamento via PIX
         </h3>
-        <p className="text-gray-300 mb-4">
+        <p className="text-gray-700 mb-4">
           Escaneie o QR Code ou copie o código PIX
         </p>
         <div className="text-3xl font-bold text-green-400 mb-2">
           R$ {amount.toFixed(2).replace('.', ',')}
         </div>
-        <div className="text-red-400 font-semibold">
+        <div className="text-red-600 font-semibold">
           ⏰ Expira em: {formatTime(timeLeft)}
         </div>
       </div>
@@ -188,7 +188,7 @@ const QRCodePix = ({ amount, email, phone, hasDiscount, onPaymentConfirmed }: QR
 
       {/* PIX Code */}
       <div className="mb-6">
-        <label className="block text-sm font-semibold text-white mb-2">
+        <label className="block text-sm font-semibold text-gray-800 mb-2">
           Código PIX (Copia e Cola):
         </label>
         <div className="flex items-center space-x-2">
@@ -222,13 +222,13 @@ const QRCodePix = ({ amount, email, phone, hasDiscount, onPaymentConfirmed }: QR
         <h4 className="font-semibold text-blue-800 mb-2">
           📋 Como pagar:
         </h4>
-        <ol className="text-blue-700 text-sm space-y-1">
-          <li>1. Abra o app do seu banco</li>
-          <li>2. Escolha a opção PIX</li>
-          <li>3. Escaneie o QR Code ou cole o código</li>
-          <li>4. Confirme o pagamento</li>
-          <li>5. Aguarde a confirmação automática</li>
-        </ol>
+        <div className="text-blue-700 text-sm space-y-1">
+          <div>1. Abra o app do seu banco</div>
+          <div>2. Escolha a opção PIX</div>
+          <div>3. Escaneie o QR Code ou cole o código</div>
+          <div>4. Confirme o pagamento</div>
+          <div>5. Aguarde a confirmação automática</div>
+        </div>
       </div>
 
       {/* Status and Actions */}

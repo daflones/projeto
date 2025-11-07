@@ -51,6 +51,7 @@ export interface Lead {
 export interface AnalysisResult {
   id?: string
   whatsapp: string
+  nome?: string
   messages_count: number
   media_count: number
   contacts_count: number
@@ -360,7 +361,8 @@ export const saveAnalysisResults = async (
   messagesCount: number,
   mediaCount: number,
   contactsCount: number,
-  riskLevel: 'low' | 'medium' | 'high'
+  riskLevel: 'low' | 'medium' | 'high',
+  nome?: string
 ) => {
   try {
     // Primeiro, verificar se já existe um registro para este WhatsApp
@@ -390,6 +392,7 @@ export const saveAnalysisResults = async (
           media_count: mediaCount,
           contacts_count: contactsCount,
           risk_level: riskLevel,
+          nome: nome || existing.nome || 'Usuário',
           updated_at: new Date().toISOString()
         })
         .eq('id', existing.id)
@@ -409,6 +412,7 @@ export const saveAnalysisResults = async (
         .insert([
           {
             whatsapp,
+            nome: nome || 'Usuário',
             messages_count: messagesCount,
             media_count: mediaCount,
             contacts_count: contactsCount,
@@ -431,6 +435,7 @@ export const saveAnalysisResults = async (
       .insert([
         {
           whatsapp,
+          nome: nome || 'Usuário',
           messages_count: messagesCount,
           media_count: mediaCount,
           contacts_count: contactsCount,
