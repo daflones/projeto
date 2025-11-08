@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   BarChart3, Users, TrendingUp, DollarSign, Eye, MousePointerClick,
   ShoppingCart, CheckCircle, LogOut, Settings, RefreshCw, Calendar,
-  Activity, Wallet, Check, Clock, X, CreditCard
+  Activity, Wallet, Check, Clock, X, CreditCard, Package
 } from 'lucide-react'
 import { useAdmin } from '../contexts/AdminContext'
 import {
@@ -194,7 +194,7 @@ const AdminDashboardPage = () => {
         {activeTab === 'overview' && (
           <div className="space-y-6">
             {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
               <StatsCard
                 title="Visualizações"
                 value={stats?.total_page_views.toLocaleString() || '0'}
@@ -208,6 +208,13 @@ const AdminDashboardPage = () => {
                 subtitle={`Taxa de checkout: ${stats?.lead_conversion_rate.toFixed(1)}%`}
                 icon={MousePointerClick}
                 iconColor="bg-green-500/20 text-green-400"
+              />
+              <StatsCard
+                title="Planos Visualizados"
+                value={(funnelStats.find(f => f.step_name === 'plans_viewed')?.total_users || 0).toLocaleString()}
+                subtitle={`${((funnelStats.find(f => f.step_name === 'plans_viewed')?.total_users || 0) / (stats?.total_leads || 1) * 100).toFixed(1)}% dos leads`}
+                icon={Package}
+                iconColor="bg-purple-500/20 text-purple-400"
               />
               <StatsCard
                 title="Checkouts"
