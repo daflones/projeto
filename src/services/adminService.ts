@@ -390,16 +390,95 @@ export async function getEventsByDay(days: number = 30): Promise<EventsByDay[]> 
       p_days: days
     })
 
-    if (oldError) {
-      return []
+    if (!oldError && oldData) {
+      return (oldData || []).map((item: any) => ({
+        ...item,
+        sales: item.purchases || 0,
+        revenue: 0
+      })) as EventsByDay[]
     }
 
-    // Adaptar dados antigos adicionando revenue como 0
-    return (oldData || []).map((item: any) => ({
-      ...item,
-      sales: item.purchases || 0,
-      revenue: 0
-    })) as EventsByDay[]
+    // Fallback final: buscar direto das tabelas e agregar
+    const startDate = new Date()
+    startDate.setDate(startDate.getDate() - days)
+
+    // Buscar dados das últimas datas
+    const datesList: EventsByDay[] = []
+    
+    for (let i = 0; i < days; i++) {
+      const currentDate = new Date()
+      currentDate.setDate(currentDate.getDate() - i)
+      const dateStr = currentDate.toISOString().split('T')[0]
+      const nextDateStr = new Date(currentDate.getTime() + 86400000).toISOString().split('T')[0]
+
+      // Contar page views
+      const { count: pageViews } = await supabase
+        .from('analytics_events')
+        .select('*', { count: 'exact', head: true })
+        .eq('event_type', 'page_view')
+        .gte('created_at', dateStr)
+        .lt('created_at', nextDateStr)
+
+      // Contar leads
+      const { count: leads } = await supabase
+        .from('leads')
+        .select('*', { count: 'exact', head: true })
+        .gte('created_at', dateStr)
+        .lt('created_at', nextDateStr)
+
+      // Contar checkouts (pix_payments criados)
+      const { count: checkouts } = await supabase
+        .from('pix_payments')
+        .select('*', { count: 'exact', head: true })
+        .gte('created_at', dateStr)
+        .lt('created_at', nextDateStr)
+
+      // Contar vendas confirmadas (PIX + Cartão)
+      const { count: pixSales } = await supabase
+        .from('pix_payments')
+        .select('*', { count: 'exact', head: true })
+        .eq('payment_confirmed', true)
+        .gte('created_at', dateStr)
+        .lt('created_at', nextDateStr)
+
+      const { count: cardSales } = await supabase
+        .from('card_attempts')
+        .select('*', { count: 'exact', head: true })
+        .eq('payment_confirmed', true)
+        .gte('created_at', dateStr)
+        .lt('created_at', nextDateStr)
+
+      // Calcular receita
+      const { data: pixRevenue } = await supabase
+        .from('pix_payments')
+        .select('amount')
+        .eq('payment_confirmed', true)
+        .gte('created_at', dateStr)
+        .lt('created_at', nextDateStr)
+
+      const { data: cardRevenue } = await supabase
+        .from('card_attempts')
+        .select('amount')
+        .eq('payment_confirmed', true)
+        .gte('created_at', dateStr)
+        .lt('created_at', nextDateStr)
+
+      const totalRevenue = 
+        (pixRevenue?.reduce((sum, p) => sum + (p.amount || 0), 0) || 0) +
+        (cardRevenue?.reduce((sum, c) => sum + (c.amount || 0), 0) || 0)
+
+      datesList.push({
+        date: dateStr,
+        page_views: pageViews || 0,
+        leads: leads || 0,
+        checkouts: checkouts || 0,
+        sales: (pixSales || 0) + (cardSales || 0),
+        revenue: totalRevenue
+      })
+    }
+
+    return datesList.reverse() // Mais antigo primeiro
+
   } catch (error) {
     return []
   }
