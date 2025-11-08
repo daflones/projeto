@@ -39,7 +39,7 @@ export function useAnalytics() {
         eventData
       )
     } catch (error) {
-      console.error('Erro ao rastrear evento:', error)
+      // Erro ao rastrear evento
     }
   }, [sessionId])
 
@@ -68,7 +68,7 @@ export function useAnalytics() {
         metadata
       )
     } catch (error) {
-      console.error('Erro ao rastrear funil:', error)
+      // Erro ao rastrear funil
     }
   }, [sessionId])
 

@@ -15,6 +15,7 @@ const FunnelChart = ({ data }: FunnelChartProps) => {
     landing: 'Página Inicial',
     form_filled: 'Formulário Preenchido',
     analysis_started: 'Análise Iniciada',
+    analysis_viewed: 'Resultado Visualizado',
     plans_viewed: 'Planos Visualizados',
     checkout_initiated: 'Checkout Iniciado',
     payment_info_added: 'Dados de Pagamento',
@@ -35,7 +36,6 @@ const FunnelChart = ({ data }: FunnelChartProps) => {
     <div className="space-y-4">
       {data.map((step, index) => {
         const widthPercentage = (step.total_users / maxUsers) * 100
-        const dropoff = index > 0 ? data[index - 1].total_users - step.total_users : 0
 
         return (
           <div key={index} className="group">
@@ -49,11 +49,6 @@ const FunnelChart = ({ data }: FunnelChartProps) => {
                 </span>
               </div>
               <div className="flex items-center gap-4">
-                {dropoff > 0 && (
-                  <span className="text-xs text-red-400">
-                    -{dropoff} usuários
-                  </span>
-                )}
                 <span className="text-sm text-gray-400">
                   {step.total_users.toLocaleString()} usuários
                 </span>

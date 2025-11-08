@@ -87,7 +87,6 @@ const LeadsTable = ({ leads, onUpdate }: LeadsTableProps) => {
                   </span>
                 ) : lead.payment_status === 'pending' ? (
                   <span className="inline-flex items-center gap-1 px-3 py-1 bg-yellow-500/20 text-yellow-400 rounded-full text-xs font-semibold">
-                    <Loader2 className="w-3 h-3 animate-spin" />
                     Pendente
                   </span>
                 ) : lead.payment_status === 'expired' ? (
@@ -103,23 +102,28 @@ const LeadsTable = ({ leads, onUpdate }: LeadsTableProps) => {
                 )}
               </td>
               <td className="py-4 px-4 text-center">
-                <button
-                  onClick={() => handleTogglePayment(lead.payment_id, lead.payment_confirmed || false)}
-                  disabled={updating === lead.payment_id || !lead.payment_id}
-                  className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
-                    lead.payment_confirmed
-                      ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
-                      : 'bg-green-500/20 text-green-400 hover:bg-green-500/30'
-                  } disabled:opacity-50 disabled:cursor-not-allowed`}
-                >
-                  {updating === lead.payment_id ? (
-                    <Loader2 className="w-4 h-4 animate-spin mx-auto" />
-                  ) : lead.payment_confirmed ? (
-                    'Marcar Pendente'
-                  ) : (
-                    'Marcar Pago'
-                  )}
-                </button>
+                {/* Só mostra botão se houver pagamento (não for no_payment) */}
+                {lead.payment_status !== 'no_payment' && lead.payment_id ? (
+                  <button
+                    onClick={() => handleTogglePayment(lead.payment_id, lead.payment_confirmed || false)}
+                    disabled={updating === lead.payment_id}
+                    className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
+                      lead.payment_confirmed
+                        ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
+                        : 'bg-green-500/20 text-green-400 hover:bg-green-500/30'
+                    } disabled:opacity-50 disabled:cursor-not-allowed`}
+                  >
+                    {updating === lead.payment_id ? (
+                      <Loader2 className="w-4 h-4 animate-spin mx-auto" />
+                    ) : lead.payment_confirmed ? (
+                      'Marcar Pendente'
+                    ) : (
+                      'Marcar Pago'
+                    )}
+                  </button>
+                ) : (
+                  <span className="text-xs text-gray-500">-</span>
+                )}
               </td>
             </tr>
           ))}
