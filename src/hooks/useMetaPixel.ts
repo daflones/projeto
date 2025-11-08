@@ -27,12 +27,9 @@ export const useMetaPixel = () => {
     if (typeof window !== 'undefined' && window.fbq) {
       try {
         window.fbq('track', event, parameters);
-        console.log(`[Meta Pixel] Event tracked: ${event}`, parameters);
       } catch (error) {
-        console.error('[Meta Pixel] Error tracking event:', error);
+        // Error tracking event
       }
-    } else {
-      console.warn('[Meta Pixel] fbq not loaded yet');
     }
   }, []);
 
@@ -43,12 +40,9 @@ export const useMetaPixel = () => {
     if (typeof window !== 'undefined' && window.fbq) {
       try {
         window.fbq('trackCustom', eventName, parameters);
-        console.log(`[Meta Pixel] Custom event tracked: ${eventName}`, parameters);
       } catch (error) {
-        console.error('[Meta Pixel] Error tracking custom event:', error);
+        // Error tracking custom event
       }
-    } else {
-      console.warn('[Meta Pixel] fbq not loaded yet');
     }
   }, []);
 

@@ -73,7 +73,7 @@ const AdminDashboardPage = () => {
       setCardPayments(cardPaymentsData)
       setMetaPixelId(pixelData || '')
     } catch (error) {
-      console.error('Erro ao carregar dados:', error)
+      // Erro ao carregar dados
     } finally {
       setIsLoading(false)
     }
@@ -89,7 +89,7 @@ const AdminDashboardPage = () => {
         setTimeout(() => setPixelSuccess(false), 3000)
       }
     } catch (error) {
-      console.error('Erro ao atualizar pixel:', error)
+      // Erro ao atualizar pixel
     } finally {
       setIsLoadingPixel(false)
     }

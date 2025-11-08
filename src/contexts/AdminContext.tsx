@@ -24,7 +24,6 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       try {
         setAdmin(JSON.parse(storedAdmin))
       } catch (error) {
-        console.error('Erro ao carregar admin do localStorage:', error)
         localStorage.removeItem('admin_user')
       }
     }
@@ -43,7 +42,6 @@ export function AdminProvider({ children }: { children: ReactNode }) {
       
       return false
     } catch (error) {
-      console.error('Erro ao fazer login:', error)
       return false
     }
   }

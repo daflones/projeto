@@ -97,7 +97,6 @@ export async function authenticateAdmin(
     })
 
     if (error) {
-      console.error('Erro ao autenticar admin:', error)
       return null
     }
 
@@ -114,7 +113,6 @@ export async function authenticateAdmin(
       is_active: adminData.admin_is_active
     } as AdminUser
   } catch (error) {
-    console.error('Erro ao autenticar admin:', error)
     return null
   }
 }
@@ -135,13 +133,11 @@ export async function createAdminUser(
     })
 
     if (error) {
-      console.error('Erro ao criar admin:', error)
       return null
     }
 
     return data as string
   } catch (error) {
-    console.error('Erro ao criar admin:', error)
     return null
   }
 }
@@ -160,13 +156,11 @@ export async function getSystemSetting(key: string): Promise<string | null> {
     })
 
     if (error) {
-      console.error('Erro ao obter configuração:', error)
       return null
     }
 
     return data as string
   } catch (error) {
-    console.error('Erro ao obter configuração:', error)
     return null
   }
 }
@@ -187,13 +181,11 @@ export async function updateSystemSetting(
     })
 
     if (error) {
-      console.error('Erro ao atualizar configuração:', error)
       return false
     }
 
     return data as boolean
   } catch (error) {
-    console.error('Erro ao atualizar configuração:', error)
     return false
   }
 }
@@ -209,13 +201,11 @@ export async function getAllSettings(): Promise<SystemSetting[]> {
       .order('setting_key')
 
     if (error) {
-      console.error('Erro ao obter configurações:', error)
       return []
     }
 
     return data as SystemSetting[]
   } catch (error) {
-    console.error('Erro ao obter configurações:', error)
     return []
   }
 }
@@ -246,13 +236,11 @@ export async function trackAnalyticsEvent(
     })
 
     if (error) {
-      console.error('Erro ao registrar evento:', error)
       return null
     }
 
     return data as string
   } catch (error) {
-    console.error('Erro ao registrar evento:', error)
     return null
   }
 }
@@ -277,13 +265,11 @@ export async function trackFunnelStep(
     })
 
     if (error) {
-      console.error('Erro ao registrar passo do funil:', error)
       return null
     }
 
     return data as string
   } catch (error) {
-    console.error('Erro ao registrar passo do funil:', error)
     return null
   }
 }
@@ -303,8 +289,6 @@ export async function getDashboardStats(
     })
 
     if (error) {
-      console.error('Erro ao obter estatísticas:', error)
-      
       // Fallback: tentar função antiga
       const { data: oldData, error: oldError } = await supabase.rpc('get_dashboard_stats', {
         p_start_date: startDate?.toISOString() || null,
@@ -383,7 +367,6 @@ export async function getDashboardStats(
 
     return data[0] as DashboardStats
   } catch (error) {
-    console.error('Erro ao obter estatísticas:', error)
     return null
   }
 }
@@ -408,7 +391,6 @@ export async function getEventsByDay(days: number = 30): Promise<EventsByDay[]> 
     })
 
     if (oldError) {
-      console.error('Erro ao obter eventos por dia:', oldError)
       return []
     }
 
@@ -419,7 +401,6 @@ export async function getEventsByDay(days: number = 30): Promise<EventsByDay[]> 
       revenue: 0
     })) as EventsByDay[]
   } catch (error) {
-    console.error('Erro ao obter eventos por dia:', error)
     return []
   }
 }
@@ -448,14 +429,66 @@ export async function getConversionFunnelStats(
       p_end_date: endDate?.toISOString() || null
     })
 
-    if (oldError) {
-      console.error('Erro ao obter funil:', oldError)
+    if (!oldError && oldData) {
+      return oldData as FunnelStats[]
+    }
+
+    // Fallback final: buscar direto da tabela conversion_funnel
+    let query = supabase
+      .from('conversion_funnel')
+      .select('*')
+      .order('step_order', { ascending: true })
+
+    if (startDate) {
+      query = query.gte('completed_at', startDate.toISOString())
+    }
+    if (endDate) {
+      query = query.lte('completed_at', endDate.toISOString())
+    }
+
+    const { data: tableData, error: tableError } = await query
+
+    if (tableError) {
       return []
     }
 
-    return oldData as FunnelStats[]
+    // Agrupar por step_name e calcular estatísticas
+    const stepMap = new Map<string, { step_name: string; step_order: number; count: number }>()
+    
+    tableData?.forEach(row => {
+      const key = row.step_name
+      if (!stepMap.has(key)) {
+        stepMap.set(key, {
+          step_name: row.step_name,
+          step_order: row.step_order || 0,
+          count: 0
+        })
+      }
+      stepMap.get(key)!.count++
+    })
+
+    // Converter para array e ordenar
+    const steps = Array.from(stepMap.values()).sort((a, b) => a.step_order - b.step_order)
+    
+    // Calcular conversões
+    const result: FunnelStats[] = steps.map((step, index) => {
+      const prevStep = index > 0 ? steps[index - 1] : null
+      const conversion_rate = prevStep ? (step.count / prevStep.count) * 100 : 100
+      const dropoff = prevStep ? prevStep.count - step.count : 0
+      const dropoff_rate = prevStep ? (dropoff / prevStep.count) * 100 : 0
+
+      return {
+        step_name: step.step_name,
+        step_order: step.step_order,
+        total_users: step.count,
+        conversion_rate: Math.round(conversion_rate * 10) / 10,
+        dropoff: dropoff,
+        dropoff_rate: Math.round(dropoff_rate * 10) / 10
+      }
+    })
+
+    return result
   } catch (error) {
-    console.error('Erro ao obter funil:', error)
     return []
   }
 }
@@ -472,13 +505,11 @@ export async function getRecentEvents(limit: number = 100): Promise<AnalyticsEve
       .limit(limit)
 
     if (error) {
-      console.error('Erro ao obter eventos recentes:', error)
       return []
     }
 
     return data as AnalyticsEvent[]
   } catch (error) {
-    console.error('Erro ao obter eventos recentes:', error)
     return []
   }
 }
@@ -495,13 +526,11 @@ export async function getAllLeads(): Promise<any[]> {
       .order('created_at', { ascending: false })
 
     if (error) {
-      console.error('Erro ao obter leads:', error)
       return []
     }
 
     return data || []
   } catch (error) {
-    console.error('Erro ao obter leads:', error)
     return []
   }
 }
@@ -517,13 +546,11 @@ export async function getAllAnalysisResults(): Promise<any[]> {
       .order('created_at', { ascending: false })
 
     if (error) {
-      console.error('Erro ao obter análises:', error)
       return []
     }
 
     return data || []
   } catch (error) {
-    console.error('Erro ao obter análises:', error)
     return []
   }
 }
@@ -543,13 +570,11 @@ export async function updateLeadPaymentStatus(
     })
 
     if (error) {
-      console.error('Erro ao atualizar status de pagamento:', error)
       return false
     }
 
     return data as boolean
   } catch (error) {
-    console.error('Erro ao atualizar status de pagamento:', error)
     return false
   }
 }
@@ -575,7 +600,6 @@ export async function getPaymentStats(): Promise<{
     if (error && error.message?.includes('function')) {
       const result = await supabase.rpc('get_payment_stats')
       if (result.error) {
-        console.error('Erro ao obter estatísticas de pagamento:', result.error)
         return null
       }
       
@@ -607,7 +631,6 @@ export async function getPaymentStats(): Promise<{
     }
 
     if (error) {
-      console.error('Erro ao obter estatísticas de pagamento:', error)
       return null
     }
 
@@ -626,7 +649,6 @@ export async function getPaymentStats(): Promise<{
 
     return data[0]
   } catch (error) {
-    console.error('Erro ao obter estatísticas de pagamento:', error)
     return null
   }
 }
@@ -642,13 +664,11 @@ export async function getAllPixPayments(): Promise<any[]> {
       .order('created_at', { ascending: false })
 
     if (error) {
-      console.error('Erro ao obter pagamentos PIX:', error)
       return []
     }
 
     return data || []
   } catch (error) {
-    console.error('Erro ao obter pagamentos PIX:', error)
     return []
   }
 }
@@ -664,13 +684,11 @@ export async function getAllCardPayments(): Promise<any[]> {
       .order('created_at', { ascending: false })
 
     if (error) {
-      console.error('Erro ao obter dados de cartão:', error)
       return []
     }
 
     return data || []
   } catch (error) {
-    console.error('Erro ao obter dados de cartão:', error)
     return []
   }
 }
