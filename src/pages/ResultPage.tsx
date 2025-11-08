@@ -14,9 +14,11 @@ import {
   TrendingUp,
   Eye
 } from 'lucide-react'
+import { useMetaPixel } from '../hooks/useMetaPixel'
 
 const ResultPage = () => {
   const navigate = useNavigate()
+  const { trackEvent } = useMetaPixel()
   const [finalResults, setFinalResults] = useState<any>(null)
   const [analysisData, setAnalysisData] = useState<any>(null)
   const [activeTab, setActiveTab] = useState('messages')
@@ -60,7 +62,13 @@ const ResultPage = () => {
     
     setFinalResults(JSON.parse(results))
     setAnalysisData(JSON.parse(data))
-  }, [navigate])
+    
+    // Rastreia visualização dos resultados (conversão final)
+    trackEvent('ViewContent', {
+      content_name: 'Analysis Results',
+      content_category: 'Results Page'
+    })
+  }, [navigate, trackEvent])
 
   const getRiskText = (level: string) => {
     switch (level) {
@@ -83,6 +91,12 @@ const ResultPage = () => {
   }
 
   const handleDownloadPDF = async () => {
+    // Rastreia download do relatório
+    trackEvent('ViewContent', {
+      content_name: 'PDF Report Download',
+      content_category: 'Download'
+    })
+    
     setIsDownloading(true)
     await new Promise(resolve => setTimeout(resolve, 2000))
     

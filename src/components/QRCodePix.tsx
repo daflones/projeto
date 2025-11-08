@@ -8,11 +8,13 @@ interface QRCodePixProps {
   amount: number
   email?: string
   phone?: string
+  whatsapp?: string
+  nome?: string
   hasDiscount?: boolean
   onPaymentConfirmed?: () => void
 }
 
-const QRCodePix = ({ amount, email, phone, hasDiscount, onPaymentConfirmed }: QRCodePixProps) => {
+const QRCodePix = ({ amount, email, phone, whatsapp, nome, hasDiscount, onPaymentConfirmed }: QRCodePixProps) => {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [copied, setCopied] = useState(false)
   const [timeLeft, setTimeLeft] = useState(900) // 15 minutos
@@ -47,11 +49,33 @@ const QRCodePix = ({ amount, email, phone, hasDiscount, onPaymentConfirmed }: QR
         const expiresAt = new Date()
         expiresAt.setMinutes(expiresAt.getMinutes() + 15) // 15 minutos
 
+        // Buscar payment_id do lead se whatsapp foi fornecido
+        let paymentId: string | undefined
+        if (whatsapp) {
+          const { data: leadData } = await getActivePixPayment(email || '', phone || '', amount)
+          // Se não encontrou PIX ativo, buscar o payment_id do lead
+          if (!leadData) {
+            const { data: lead, error: leadError } = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/rest/v1/leads?whatsapp=eq.${whatsapp}&order=created_at.desc&limit=1`, {
+              headers: {
+                'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+                'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
+              }
+            }).then(r => r.json()).catch(() => ({ data: null, error: true }))
+            
+            if (!leadError && lead && lead.length > 0) {
+              paymentId = lead[0].payment_id
+            }
+          }
+        }
+
         const pixPayment: Omit<PixPayment, 'id' | 'created_at'> = {
+          payment_id: paymentId,
           pix_code: pixData.pixCode,
           amount,
           email: email || '',
           phone: phone || '',
+          whatsapp: whatsapp || '',
+          nome: nome || 'Usuário',
           payment_confirmed: false,
           expires_at: expiresAt.toISOString()
         }
@@ -70,7 +94,7 @@ const QRCodePix = ({ amount, email, phone, hasDiscount, onPaymentConfirmed }: QR
     } finally {
       setIsGenerating(false)
     }
-  }, [amount, email, phone, hasDiscount])
+  }, [amount, email, phone, whatsapp, nome, hasDiscount])
 
   // Inicializar PIX na montagem do componente
   useEffect(() => {

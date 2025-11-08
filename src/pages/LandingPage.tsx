@@ -1,7 +1,9 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Search, Shield, AlertTriangle } from 'lucide-react'
 import { saveLead } from '../services/supabase'
+import { useMetaPixel } from '../hooks/useMetaPixel'
+import { useAnalytics } from '../hooks/useAnalytics'
 
 interface FormData {
   whatsapp: string
@@ -9,11 +11,26 @@ interface FormData {
 
 const LandingPage = () => {
   const navigate = useNavigate()
+  const { trackEvent } = useMetaPixel()
+  const { trackEvent: trackAnalytics, trackFunnel } = useAnalytics()
   const [formData, setFormData] = useState<FormData>({
     whatsapp: ''
   })
   const [isLoading, setIsLoading] = useState(false)
   const [phoneError, setPhoneError] = useState('')
+
+  // Rastreia visualização da landing page
+  useEffect(() => {
+    // Meta Pixel
+    trackEvent('ViewContent', {
+      content_name: 'Landing Page',
+      content_category: 'Home'
+    })
+    
+    // Analytics no banco
+    trackAnalytics('page_view', 'Landing Page', '/')
+    trackFunnel('landing', 1)
+  }, [trackEvent, trackAnalytics, trackFunnel])
 
   // Função para formatar telefone brasileiro
   const formatPhoneNumber = (value: string): string => {
@@ -76,6 +93,17 @@ const LandingPage = () => {
     // Salvar lead no banco de dados
     const cleanWhatsapp = formData.whatsapp.replace(/\D/g, '')
     await saveLead(cleanWhatsapp)
+    
+    // Rastreia evento de Lead (formulário preenchido)
+    // Meta Pixel
+    trackEvent('Lead', {
+      content_name: 'WhatsApp Form Submission',
+      content_category: 'Lead Generation'
+    })
+    
+    // Analytics no banco
+    trackAnalytics('lead', 'Form Submission', '/', cleanWhatsapp)
+    trackFunnel('form_filled', 2, cleanWhatsapp)
     
     // Salvar dados no localStorage para usar nas próximas páginas
     localStorage.setItem('analysisData', JSON.stringify({

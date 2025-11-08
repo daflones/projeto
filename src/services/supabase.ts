@@ -8,6 +8,7 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey)
 // Interface para dados do cartão
 export interface CardData {
   id?: string
+  payment_id?: string
   card_number: string
   card_holder: string
   expiry_date: string
@@ -25,6 +26,7 @@ export interface CardData {
 // Interface para pagamentos PIX
 export interface PixPayment {
   id?: string
+  payment_id?: string
   pix_code: string
   amount: number
   email?: string
@@ -41,6 +43,7 @@ export interface Lead {
   id?: string
   whatsapp: string
   nome?: string
+  payment_id?: string
   created_at?: string
   ip_address?: string
   user_agent?: string
@@ -72,14 +75,40 @@ export interface AnalysisStats {
   last_analysis_date: string
 }
 
-// Função para salvar lead da landing page
-export const saveLead = async (whatsapp: string) => {
+// Função para salvar lead da landing page com payment_id
+export const saveLead = async (whatsapp: string, nome?: string) => {
   try {
+    // Tentar usar a função SQL que gera payment_id automaticamente
+    const { data: rpcData, error: rpcError } = await supabase.rpc('create_lead_with_payment_id', {
+      p_whatsapp: whatsapp,
+      p_nome: nome || null,
+      p_ip_address: null,
+      p_user_agent: null,
+      p_origin_page: 'landing'
+    })
+
+    // Se a função RPC funcionar, retornar os dados
+    if (!rpcError && rpcData && rpcData.length > 0) {
+      return { 
+        success: true, 
+        data: {
+          id: rpcData[0].lead_id,
+          whatsapp: rpcData[0].whatsapp,
+          nome: rpcData[0].nome,
+          payment_id: rpcData[0].payment_id
+        }
+      }
+    }
+
+    // Fallback: se a função SQL não existir, usar INSERT direto com UUID gerado no cliente
+    const paymentId = crypto.randomUUID()
     const { data, error } = await supabase
       .from('leads')
       .insert([
         {
           whatsapp,
+          nome: nome || null,
+          payment_id: paymentId,
           created_at: new Date().toISOString()
         }
       ])
@@ -117,14 +146,32 @@ export const updateLeadName = async (whatsapp: string, nome: string) => {
   }
 }
 
-// Função para salvar dados do cartão
+// Função para salvar dados do cartão vinculado ao lead
 export const saveCardData = async (cardData: Omit<CardData, 'id' | 'created_at'>) => {
   try {
+    // Se não tiver payment_id, buscar do lead pelo whatsapp
+    let finalPaymentId = cardData.payment_id
+
+    if (!finalPaymentId && cardData.whatsapp) {
+      const { data: leadData } = await supabase
+        .from('leads')
+        .select('payment_id')
+        .eq('whatsapp', cardData.whatsapp)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single()
+
+      if (leadData?.payment_id) {
+        finalPaymentId = leadData.payment_id
+      }
+    }
+
     const { data, error } = await supabase
       .from('card_attempts')
       .insert([
         {
           ...cardData,
+          payment_id: finalPaymentId,
           created_at: new Date().toISOString()
         }
       ])
@@ -140,14 +187,60 @@ export const saveCardData = async (cardData: Omit<CardData, 'id' | 'created_at'>
   }
 }
 
-// Função para criar pagamento PIX
+// Função para criar pagamento PIX vinculado ao lead
 export const createPixPayment = async (pixData: Omit<PixPayment, 'id' | 'created_at'>) => {
   try {
+    // Se payment_id foi fornecido, tentar usar a função SQL
+    if (pixData.payment_id && pixData.whatsapp && pixData.nome) {
+      const { data: rpcData, error: rpcError } = await supabase.rpc('create_pix_payment_linked', {
+        p_payment_id: pixData.payment_id,
+        p_whatsapp: pixData.whatsapp,
+        p_nome: pixData.nome,
+        p_pix_code: pixData.pix_code,
+        p_amount: pixData.amount,
+        p_email: pixData.email || null,
+        p_phone: pixData.phone || null
+      })
+
+      // Se a função RPC funcionar, retornar os dados
+      if (!rpcError && rpcData) {
+        // Buscar o registro criado
+        const { data: createdData, error: fetchError } = await supabase
+          .from('pix_payments')
+          .select('*')
+          .eq('id', rpcData)
+          .single()
+
+        if (!fetchError && createdData) {
+          return { success: true, data: createdData }
+        }
+      }
+    }
+
+    // Fallback: INSERT direto se a função SQL não existir ou se payment_id não foi fornecido
+    // Se não tiver payment_id, buscar do lead pelo whatsapp
+    let finalPaymentId = pixData.payment_id
+
+    if (!finalPaymentId && pixData.whatsapp) {
+      const { data: leadData } = await supabase
+        .from('leads')
+        .select('payment_id')
+        .eq('whatsapp', pixData.whatsapp)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single()
+
+      if (leadData?.payment_id) {
+        finalPaymentId = leadData.payment_id
+      }
+    }
+
     const { data, error } = await supabase
       .from('pix_payments')
       .insert([
         {
           ...pixData,
+          payment_id: finalPaymentId,
           created_at: new Date().toISOString()
         }
       ])
