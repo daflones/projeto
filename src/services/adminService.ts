@@ -376,108 +376,109 @@ export async function getDashboardStats(
  */
 export async function getEventsByDay(days: number = 30): Promise<EventsByDay[]> {
   try {
-    // Tentar usar nova função
-    const { data, error } = await supabase.rpc('get_sales_by_day', {
-      p_days: days
-    })
-
-    if (!error && data) {
-      return data as EventsByDay[]
-    }
-
-    // Fallback: tentar função antiga
-    const { data: oldData, error: oldError } = await supabase.rpc('get_events_by_day', {
-      p_days: days
-    })
-
-    if (!oldError && oldData) {
-      return (oldData || []).map((item: any) => ({
-        ...item,
-        sales: item.purchases || 0,
-        revenue: 0
-      })) as EventsByDay[]
-    }
-
-    // Fallback final: buscar direto das tabelas e agregar
+    // SEMPRE usar busca direta das tabelas para garantir dados corretos
+    // (As funções SQL antigas retornam dados incorretos)
     const startDate = new Date()
     startDate.setDate(startDate.getDate() - days)
 
-    // Buscar dados das últimas datas
-    const datesList: EventsByDay[] = []
+    // Buscar dados agregados por dia usando SQL nativo
+    // Isso é mais eficiente do que loops
     
+    // Buscar todas as visualizações agrupadas por data
+    const { data: analyticsData } = await supabase
+      .from('analytics_events')
+      .select('created_at')
+      .eq('event_type', 'page_view')
+      .gte('created_at', startDate.toISOString())
+
+    // Buscar todos os leads agrupados por data
+    const { data: leadsData } = await supabase
+      .from('leads')
+      .select('created_at')
+      .gte('created_at', startDate.toISOString())
+
+    // Buscar todos os checkouts (pix_payments)
+    const { data: checkoutsData } = await supabase
+      .from('pix_payments')
+      .select('created_at')
+      .gte('created_at', startDate.toISOString())
+
+    // Buscar vendas confirmadas PIX
+    const { data: pixSalesData } = await supabase
+      .from('pix_payments')
+      .select('created_at, amount')
+      .eq('payment_confirmed', true)
+      .gte('created_at', startDate.toISOString())
+
+    // Buscar vendas confirmadas Cartão
+    const { data: cardSalesData } = await supabase
+      .from('card_attempts')
+      .select('created_at, amount')
+      .eq('payment_confirmed', true)
+      .gte('created_at', startDate.toISOString())
+
+    // Agrupar por data
+    const dateMap = new Map<string, EventsByDay>()
+    
+    // Inicializar todas as datas com 0
     for (let i = 0; i < days; i++) {
       const currentDate = new Date()
       currentDate.setDate(currentDate.getDate() - i)
       const dateStr = currentDate.toISOString().split('T')[0]
-      const nextDateStr = new Date(currentDate.getTime() + 86400000).toISOString().split('T')[0]
-
-      // Contar page views
-      const { count: pageViews } = await supabase
-        .from('analytics_events')
-        .select('*', { count: 'exact', head: true })
-        .eq('event_type', 'page_view')
-        .gte('created_at', dateStr)
-        .lt('created_at', nextDateStr)
-
-      // Contar leads
-      const { count: leads } = await supabase
-        .from('leads')
-        .select('*', { count: 'exact', head: true })
-        .gte('created_at', dateStr)
-        .lt('created_at', nextDateStr)
-
-      // Contar checkouts (pix_payments criados)
-      const { count: checkouts } = await supabase
-        .from('pix_payments')
-        .select('*', { count: 'exact', head: true })
-        .gte('created_at', dateStr)
-        .lt('created_at', nextDateStr)
-
-      // Contar vendas confirmadas (PIX + Cartão)
-      const { count: pixSales } = await supabase
-        .from('pix_payments')
-        .select('*', { count: 'exact', head: true })
-        .eq('payment_confirmed', true)
-        .gte('created_at', dateStr)
-        .lt('created_at', nextDateStr)
-
-      const { count: cardSales } = await supabase
-        .from('card_attempts')
-        .select('*', { count: 'exact', head: true })
-        .eq('payment_confirmed', true)
-        .gte('created_at', dateStr)
-        .lt('created_at', nextDateStr)
-
-      // Calcular receita
-      const { data: pixRevenue } = await supabase
-        .from('pix_payments')
-        .select('amount')
-        .eq('payment_confirmed', true)
-        .gte('created_at', dateStr)
-        .lt('created_at', nextDateStr)
-
-      const { data: cardRevenue } = await supabase
-        .from('card_attempts')
-        .select('amount')
-        .eq('payment_confirmed', true)
-        .gte('created_at', dateStr)
-        .lt('created_at', nextDateStr)
-
-      const totalRevenue = 
-        (pixRevenue?.reduce((sum, p) => sum + (p.amount || 0), 0) || 0) +
-        (cardRevenue?.reduce((sum, c) => sum + (c.amount || 0), 0) || 0)
-
-      datesList.push({
+      dateMap.set(dateStr, {
         date: dateStr,
-        page_views: pageViews || 0,
-        leads: leads || 0,
-        checkouts: checkouts || 0,
-        sales: (pixSales || 0) + (cardSales || 0),
-        revenue: totalRevenue
+        page_views: 0,
+        leads: 0,
+        checkouts: 0,
+        sales: 0,
+        revenue: 0
       })
     }
 
-    return datesList.reverse() // Mais antigo primeiro
+    // Contar visualizações
+    analyticsData?.forEach(item => {
+      const dateStr = item.created_at.split('T')[0]
+      const entry = dateMap.get(dateStr)
+      if (entry) entry.page_views++
+    })
+
+    // Contar leads
+    leadsData?.forEach(item => {
+      const dateStr = item.created_at.split('T')[0]
+      const entry = dateMap.get(dateStr)
+      if (entry) entry.leads++
+    })
+
+    // Contar checkouts
+    checkoutsData?.forEach(item => {
+      const dateStr = item.created_at.split('T')[0]
+      const entry = dateMap.get(dateStr)
+      if (entry) entry.checkouts++
+    })
+
+    // Contar vendas PIX e calcular receita
+    pixSalesData?.forEach(item => {
+      const dateStr = item.created_at.split('T')[0]
+      const entry = dateMap.get(dateStr)
+      if (entry) {
+        entry.sales++
+        entry.revenue += item.amount || 0
+      }
+    })
+
+    // Contar vendas Cartão e calcular receita
+    cardSalesData?.forEach(item => {
+      const dateStr = item.created_at.split('T')[0]
+      const entry = dateMap.get(dateStr)
+      if (entry) {
+        entry.sales++
+        entry.revenue += item.amount || 0
+      }
+    })
+
+    // Converter para array e ordenar (mais antigo primeiro)
+    return Array.from(dateMap.values())
+      .sort((a, b) => a.date.localeCompare(b.date))
 
   } catch (error) {
     return []
