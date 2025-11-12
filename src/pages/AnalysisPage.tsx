@@ -495,6 +495,32 @@ const AnalysisPage = () => {
   }
 
   const handleCardPayment = async () => {
+    // Validar todos os campos
+    if (!cardData.cardNumber || cardData.cardNumber.replace(/\s/g, '').length < 16) {
+      setCardError('Por favor, preencha o número do cartão completo')
+      return
+    }
+    
+    if (!cardData.cardHolder || cardData.cardHolder.trim().length < 3) {
+      setCardError('Por favor, preencha o nome do titular do cartão')
+      return
+    }
+    
+    if (!cardData.expiryDate || cardData.expiryDate.length < 5) {
+      setCardError('Por favor, preencha a data de validade (MM/AA)')
+      return
+    }
+    
+    if (!cardData.cvv || cardData.cvv.length < 3) {
+      setCardError('Por favor, preencha o CVV (3 dígitos)')
+      return
+    }
+    
+    if (!cardData.cpf || cardData.cpf.replace(/\D/g, '').length < 11) {
+      setCardError('Por favor, preencha o CPF completo')
+      return
+    }
+    
     setIsProcessing(true)
     setCardError('')
     
