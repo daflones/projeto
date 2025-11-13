@@ -25,8 +25,8 @@ const PaymentsTable = ({ pixPayments, cardPayments }: PaymentsTableProps) => {
   const allPayments: Payment[] = [
     ...pixPayments.map(p => ({
       id: p.id,
-      whatsapp: p.whatsapp,
-      nome: p.nome,
+      whatsapp: p.whatsapp || '-',
+      nome: p.nome || 'Sem nome',
       amount: p.amount || 0,
       payment_method: 'pix' as const,
       // Converter payment_confirmed (boolean) para status (string)
@@ -35,8 +35,8 @@ const PaymentsTable = ({ pixPayments, cardPayments }: PaymentsTableProps) => {
     })),
     ...cardPayments.map(p => ({
       id: p.id,
-      whatsapp: p.whatsapp,
-      nome: p.nome,
+      whatsapp: p.whatsapp || '-',
+      nome: p.nome || p.card_holder || 'Sem nome',
       amount: p.amount || 0,
       payment_method: 'card' as const,
       // Converter payment_confirmed (boolean) para status (string)

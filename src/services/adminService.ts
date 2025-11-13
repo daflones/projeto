@@ -486,6 +486,45 @@ export async function getEventsByDay(days: number = 30): Promise<EventsByDay[]> 
 }
 
 /**
+ * Obtém total de usuários que visualizaram os planos
+ */
+export async function getPlansViewedCount(
+  startDate?: Date,
+  endDate?: Date
+): Promise<number> {
+  try {
+    // Buscar todos os registros de plans_viewed
+    const query = supabase
+      .from('conversion_funnel')
+      .select('user_session_id, completed_at')
+      .eq('step_name', 'plans_viewed')
+
+    const { data, error } = await query
+
+    if (error || !data || data.length === 0) {
+      return 0
+    }
+
+    // Filtrar por data se fornecido
+    let filteredData = data
+    if (startDate || endDate) {
+      filteredData = data.filter(row => {
+        const rowDate = new Date(row.completed_at)
+        if (startDate && rowDate < startDate) return false
+        if (endDate && rowDate > endDate) return false
+        return true
+      })
+    }
+
+    // Contar sessões únicas
+    const uniqueSessions = new Set(filteredData.map(row => row.user_session_id))
+    return uniqueSessions.size
+  } catch (error) {
+    return 0
+  }
+}
+
+/**
  * Obtém estatísticas do funil de conversão completo
  */
 export async function getConversionFunnelStats(
@@ -759,7 +798,7 @@ export async function getAllPixPayments(): Promise<any[]> {
 export async function getAllCardPayments(): Promise<any[]> {
   try {
     const { data, error } = await supabase
-      .from('card_data')
+      .from('card_attempts')
       .select('*')
       .order('created_at', { ascending: false })
 
