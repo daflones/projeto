@@ -163,7 +163,7 @@ MÍDIAS ENCONTRADAS:
             
             <div className="text-center">
               <h1 className="text-5xl font-extrabold mb-4 drop-shadow-lg">
-                🔍 Relatório Completo
+                Relatório Completo
               </h1>
               
               <div className="inline-flex items-center gap-8 bg-white/10 backdrop-blur-md px-10 py-5 rounded-2xl border border-white/20 mb-8">
@@ -232,8 +232,8 @@ MÍDIAS ENCONTRADAS:
               
               <p className="text-gray-700 text-xl max-w-3xl mx-auto">
                 {finalResults.riskLevel === 'high' 
-                  ? '🚨 Foram encontradas evidências significativas de comportamento suspeito que merecem atenção imediata.'
-                  : '⚠️ Algumas atividades suspeitas foram identificadas, mas podem ter explicações inocentes.'
+                  ? 'Foram encontradas evidências significativas de comportamento suspeito que merecem atenção imediata.'
+                  : 'Algumas atividades suspeitas foram identificadas, mas podem ter explicações inocentes.'
                 }
               </p>
             </div>
@@ -253,7 +253,6 @@ MÍDIAS ENCONTRADAS:
                   }`}
                   style={{ width: `${finalResults.riskScore}%` }}
                 >
-                  <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
                   <span className="relative z-10 text-white font-bold text-sm drop-shadow-lg">{finalResults.riskScore}%</span>
                 </div>
               </div>
@@ -267,7 +266,7 @@ MÍDIAS ENCONTRADAS:
 
           {/* Summary Cards */}
           <div className="grid md:grid-cols-4 gap-6 mb-8">
-            <div className="glass-card p-6 text-center floating-element">
+            <div className="glass-card p-6 text-center ">
               <div className="bg-red-500/20 p-4 rounded-full w-fit mx-auto mb-4 border border-red-500/30">
                 <MessageCircle className="w-12 h-12 text-red-400" />
               </div>
@@ -278,7 +277,7 @@ MÍDIAS ENCONTRADAS:
               <div className="text-gray-600 text-sm">Detectadas</div>
             </div>
             
-            <div className="glass-card p-6 text-center floating-element">
+            <div className="glass-card p-6 text-center ">
               <div className="bg-orange-500/20 p-4 rounded-full w-fit mx-auto mb-4 border border-orange-500/30">
                 <Image className="w-12 h-12 text-orange-400" />
               </div>
@@ -289,7 +288,7 @@ MÍDIAS ENCONTRADAS:
               <div className="text-gray-600 text-sm">Encontradas</div>
             </div>
             
-            <div className="glass-card p-6 text-center floating-element">
+            <div className="glass-card p-6 text-center ">
               <div className="bg-purple-500/20 p-4 rounded-full w-fit mx-auto mb-4 border border-purple-500/30">
                 <Users className="w-12 h-12 text-purple-400" />
               </div>
@@ -300,7 +299,7 @@ MÍDIAS ENCONTRADAS:
               <div className="text-gray-600 text-sm">Identificados</div>
             </div>
             
-            <div className="glass-card p-6 text-center floating-element">
+            <div className="glass-card p-6 text-center ">
               <div className="bg-blue-500/20 p-4 rounded-full w-fit mx-auto mb-4 border border-blue-500/30">
                 <TrendingUp className="w-12 h-12 text-blue-400" />
               </div>
@@ -389,10 +388,10 @@ MÍDIAS ENCONTRADAS:
                             </div>
                             <div className="flex items-center gap-3 text-sm">
                               <span className="text-gray-600">
-                                🕒 {new Date().toLocaleDateString('pt-BR')} às {Math.floor(Math.random() * 24).toString().padStart(2, '0')}:{Math.floor(Math.random() * 60).toString().padStart(2, '0')}
+                                {new Date().toLocaleDateString('pt-BR')} às {Math.floor(Math.random() * 24).toString().padStart(2, '0')}:{Math.floor(Math.random() * 60).toString().padStart(2, '0')}
                               </span>
                               <span className="bg-red-600 text-white px-4 py-1.5 rounded-full font-bold text-xs">
-                                ⚠️ SUSPEITA
+                                SUSPEITA
                               </span>
                             </div>
                           </div>
@@ -432,7 +431,7 @@ MÍDIAS ENCONTRADAS:
                               ? 'bg-red-600 text-white border-red-400 shadow-lg shadow-red-500/50' 
                               : 'bg-yellow-600 text-white border-yellow-400 shadow-lg shadow-yellow-500/50'
                           }`}>
-                            ⚠️ Risco {contact.risk}
+                            Risco {contact.risk}
                           </div>
                         </div>
                       </div>
@@ -487,7 +486,7 @@ MÍDIAS ENCONTRADAS:
                       <Eye className="w-8 h-8 text-yellow-300 mr-3 mt-1" />
                       <div>
                         <h4 className="font-bold text-yellow-200 text-xl mb-3">
-                          🔍 Observações Importantes sobre Mídias
+                          Observações Importantes sobre Mídias
                         </h4>
                         <ul className="text-yellow-100 space-y-3 text-lg">
                           <li className="flex items-start">
@@ -520,7 +519,7 @@ MÍDIAS ENCONTRADAS:
               {activeTab === 'recommendations' && (
                 <div>
                   <h3 className="text-4xl font-bold text-gray-900 mb-8">
-                    ✅ Recomendações Personalizadas
+                    Recomendações Personalizadas
                   </h3>
                   <p className="text-gray-700 text-lg mb-8">
                     Com base na análise, sugerimos os seguintes passos:

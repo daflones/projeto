@@ -49,12 +49,12 @@ const FakeMessages = () => {
     ]
 
     const mediaContents = [
-      "📷 Foto", "🎥 Vídeo (0:30)", "🎵 Áudio (0:15)", 
-      "📷 Selfie", "🎥 Vídeo (1:45)", "🎵 Mensagem de voz (0:08)",
-      "📷 Imagem", "🎥 Chamada perdida", "🎵 Áudio (0:22)",
-      "📷 Foto enviada", "🎥 Vídeo (0:12)", "🎵 Nota de voz (0:35)",
-      "📷 2 fotos", "🎥 Vídeo curto", "🎵 Áudio (1:02)",
-      "📷 Imagem deletada", "🎥 Vídeo (2:15)", "🎵 Mensagem (0:18)"
+      "Foto", "Vídeo (0:30)", "Áudio (0:15)", 
+      "Selfie", "Vídeo (1:45)", "Mensagem de voz (0:08)",
+      "Imagem", "Chamada perdida", "Áudio (0:22)",
+      "Foto enviada", "Vídeo (0:12)", "Nota de voz (0:35)",
+      "2 fotos", "Vídeo curto", "Áudio (1:02)",
+      "Imagem deletada", "Vídeo (2:15)", "Mensagem (0:18)"
     ]
 
     // Gerar horários aleatórios (principalmente noturnos e suspeitos)
@@ -74,7 +74,7 @@ const FakeMessages = () => {
       let content, type
       if (isMedia) {
         content = mediaContents[Math.floor(Math.random() * mediaContents.length)]
-        type = content.includes('📷') ? 'image' : content.includes('🎥') ? 'video' : 'audio'
+        type = content.includes('Foto') || content.includes('Imagem') || content.includes('Selfie') ? 'image' : content.includes('Vídeo') || content.includes('Chamada') ? 'video' : 'audio'
       } else {
         const fullText = textMessages[Math.floor(Math.random() * textMessages.length)]
         // Mostrar apenas parte da mensagem com blur no final
@@ -110,8 +110,8 @@ const FakeMessages = () => {
   return (
     <div className="glass-card p-6 border border-orange-500/30">
       <div className="flex items-center mb-6">
-        <div className="w-3 h-3 bg-orange-400 rounded-full mr-3 animate-pulse"></div>
-        <h4 className="font-semibold text-orange-300 text-lg">📱 Conversas Suspeitas Detectadas</h4>
+        <div className="w-3 h-3 bg-orange-400 rounded-full mr-3"></div>
+        <h4 className="font-semibold text-orange-300 text-lg">Conversas Suspeitas Detectadas</h4>
       </div>
       
       <div className="space-y-3 max-h-80 overflow-hidden">
@@ -133,8 +133,8 @@ const FakeMessages = () => {
             <div className="text-gray-300 text-sm relative">
               <span className="inline">{message.content}</span>
               {message.type === 'text' && (
-                <span className="inline-block ml-2 bg-gradient-to-r from-transparent via-gray-600 to-gray-800 text-transparent bg-clip-text blur-sm">
-                  texto borrado aqui
+                <span className="inline-block ml-2 text-gray-600">
+                  ████████
                 </span>
               )}
             </div>
@@ -150,7 +150,7 @@ const FakeMessages = () => {
       
       <div className="mt-6 text-center bg-orange-500/10 rounded-xl p-4 border border-orange-500/20">
         <p className="text-orange-300 text-sm font-semibold mb-1">
-          ⚠️ {messages.length} conversas suspeitas encontradas
+          {messages.length} conversas suspeitas encontradas
         </p>
         <p className="text-gray-400 text-xs">
           Desbloqueie o relatório completo para ver todo o conteúdo

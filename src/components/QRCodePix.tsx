@@ -120,20 +120,20 @@ const QRCodePix = ({ amount, email, phone, whatsapp, nome, hasDiscount, onPaymen
     }
   }, [pixCode])
 
-  // Timer de expiração
+  // Timer de expiração - Otimizado para 2s
   useEffect(() => {
     if (timeLeft <= 0) return
 
     const timer = setInterval(() => {
       setTimeLeft(prev => {
-        if (prev <= 1) {
+        if (prev <= 2) {
           setIsExpired(true)
           clearInterval(timer)
           return 0
         }
-        return prev - 1
+        return prev - 2
       })
-    }, 1000)
+    }, 2000)
 
     return () => clearInterval(timer)
   }, [timeLeft])
@@ -152,9 +152,9 @@ const QRCodePix = ({ amount, email, phone, whatsapp, nome, hasDiscount, onPaymen
       }
     }
 
-    // Verificar imediatamente e depois a cada 2 segundos
+    // Verificar imediatamente e depois a cada 5 segundos (otimizado)
     checkPayment()
-    const pollInterval = setInterval(checkPayment, 2000)
+    const pollInterval = setInterval(checkPayment, 5000)
 
     return () => clearInterval(pollInterval)
   }, [pixPaymentId, isExpired, onPaymentConfirmed])
@@ -178,17 +178,17 @@ const QRCodePix = ({ amount, email, phone, whatsapp, nome, hasDiscount, onPaymen
   return (
     <div className="glass-card p-8 text-center warning-glow">
       <div className="mb-6">
-        <h3 className="text-2xl font-bold mb-2 title-premium">
-          💳 Pagamento via PIX
+        <h3 className="text-2xl font-bold mb-3 text-gray-800">
+          Pagamento via PIX
         </h3>
-        <p className="text-gray-700 mb-4">
+        <p className="text-gray-600 mb-4 text-sm">
           Escaneie o QR Code ou copie o código PIX
         </p>
-        <div className="text-3xl font-bold text-green-400 mb-2">
+        <div className="text-3xl font-bold text-red-600 mb-2">
           R$ {amount.toFixed(2).replace('.', ',')}
         </div>
-        <div className="text-red-600 font-semibold">
-          ⏰ Expira em: {formatTime(timeLeft)}
+        <div className="text-red-600 font-semibold text-sm">
+          Expira em: {formatTime(timeLeft)}
         </div>
       </div>
 
@@ -223,22 +223,22 @@ const QRCodePix = ({ amount, email, phone, whatsapp, nome, hasDiscount, onPaymen
         </div>
         {copied && (
           <p className="text-green-400 text-sm mt-2">
-            ✅ Código PIX copiado!
+            Código PIX copiado!
           </p>
         )}
       </div>
 
       {/* Instructions */}
-      <div className="bg-blue-50 p-4 rounded-xl mb-6 text-left">
-        <h4 className="font-semibold text-blue-800 mb-2">
-          📋 Como pagar:
+      <div className="bg-gray-50 border-2 border-gray-200 p-4 rounded-xl mb-6 text-left">
+        <h4 className="font-bold text-gray-800 mb-3 text-base">
+          Como pagar:
         </h4>
-        <div className="text-blue-700 text-sm space-y-1">
-          <div>1. Abra o app do seu banco</div>
-          <div>2. Escolha a opção PIX</div>
-          <div>3. Escaneie o QR Code ou cole o código</div>
-          <div>4. Confirme o pagamento</div>
-          <div>5. Aguarde a confirmação automática</div>
+        <div className="text-gray-700 text-sm space-y-2">
+          <div className="font-medium">1. Abra o app do seu banco</div>
+          <div className="font-medium">2. Escolha a opção PIX</div>
+          <div className="font-medium">3. Escaneie o QR Code ou cole o código</div>
+          <div className="font-medium">4. Confirme o pagamento</div>
+          <div className="font-medium">5. Aguarde a confirmação automática</div>
         </div>
       </div>
 
@@ -246,7 +246,7 @@ const QRCodePix = ({ amount, email, phone, whatsapp, nome, hasDiscount, onPaymen
       {isExpired ? (
         <div className="mb-6">
           <div className="bg-red-500/20 border border-red-500/50 rounded-xl p-4 mb-4">
-            <p className="text-red-300 font-semibold">⏰ QR Code Expirado</p>
+            <p className="text-red-300 font-semibold">QR Code Expirado</p>
             <p className="text-gray-400 text-sm mt-1">
               Clique no botão abaixo para gerar um novo código PIX
             </p>
@@ -271,12 +271,12 @@ const QRCodePix = ({ amount, email, phone, whatsapp, nome, hasDiscount, onPaymen
         </div>
       ) : (
         <div className="mb-6">
-          <div className="bg-blue-500/20 border border-blue-500/50 rounded-xl p-4">
+          <div className="bg-gray-50 border-2 border-gray-200 rounded-xl p-4">
             <div className="flex items-center justify-center mb-2">
-              <div className="w-3 h-3 bg-green-400 rounded-full mr-2 animate-pulse"></div>
-              <p className="text-green-300 font-semibold">Aguardando Pagamento...</p>
+              <div className="w-3 h-3 bg-gray-900 rounded-full mr-2"></div>
+              <p className="text-gray-900 font-bold" style={{ fontFamily: "'Montserrat', sans-serif" }}>Aguardando Pagamento...</p>
             </div>
-            <p className="text-gray-400 text-sm">
+            <p className="text-gray-600 text-sm">
               O sistema verificará automaticamente quando o pagamento for confirmado
             </p>
           </div>

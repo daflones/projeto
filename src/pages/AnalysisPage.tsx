@@ -303,11 +303,11 @@ const AnalysisPage = () => {
     // Mostrar planos de pagamento
     setShowPaymentPlans(true)
     
-    // Scroll suave para os planos
+    // Scroll para os planos
     setTimeout(() => {
       const plansElement = document.getElementById('payment-plans')
       if (plansElement) {
-        plansElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        plansElement.scrollIntoView({ block: 'start' })
       }
     }, 100)
   }
@@ -334,11 +334,11 @@ const AnalysisPage = () => {
     // Mostrar métodos de pagamento na mesma página
     setShowPaymentMethods(true)
     
-    // Scroll suave para os métodos de pagamento
+    // Scroll para os métodos de pagamento
     setTimeout(() => {
       const paymentElement = document.getElementById('payment-methods')
       if (paymentElement) {
-        paymentElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        paymentElement.scrollIntoView({ block: 'start' })
       }
     }, 100)
   }
@@ -380,7 +380,7 @@ const AnalysisPage = () => {
     const allMessages = [
       "Oi, tudo bem? Tô com saudades...", "Consegue sair hoje?", "Deleta depois, ok?",
       "Não fala nada pra ninguém", "Tô pensando em você", "Que tal nos encontrarmos?",
-      "Adorei ontem ❤️", "Você tá livre?", "Preciso te ver", "Tá complicado aqui em casa...",
+      "Adorei ontem", "Você tá livre?", "Preciso te ver", "Tá complicado aqui em casa...",
       "Você é especial pra mim", "Quando vai dar certo?", "Nosso segredo", "Mal posso esperar",
       "Oi lindeza, como foi o dia?", "Conseguiu sair de casa?", "Tô morrendo de saudade",
       "Vamos marcar algo?", "Não posso parar de pensar em você", "Ela/ele não desconfia de nada",
@@ -401,7 +401,7 @@ const AnalysisPage = () => {
     const ddd = analysisData.whatsapp.match(/\d{2,3}/)?.[0] || '11'
     
     // Gerar contatos
-    const contactNames = ["Contato não salvo", "❤️ Amor", "Trabalho 😉", "🔥 Gatinha", "Amigo(a)"]
+    const contactNames = ["Contato não salvo", "Amor", "Trabalho", "Gatinha", "Amigo(a)"]
     const selectedContacts = contactNames.slice(0, numContacts).map((name, i) => ({
       name,
       number: `+55 ${ddd} 9${1000 + Math.floor(Math.random() * 9000)}-${1000 + Math.floor(Math.random() * 9000)}`,
@@ -599,7 +599,6 @@ const AnalysisPage = () => {
                     className="w-16 h-16 rounded-full border-2 border-red-500/50 object-cover"
                     onError={() => setProfilePictureUrl('')}
                   />
-                  <div className="absolute -inset-1 bg-red-500/20 rounded-full animate-pulse"></div>
                 </div>
               )}
               <div className="text-right">
@@ -633,8 +632,7 @@ const AnalysisPage = () => {
                         onError={() => setProfilePictureUrl('')}
                       />
                     </div>
-                    <div className="absolute -inset-2 bg-red-500/20 rounded-full animate-ping"></div>
-                    <div className="absolute -inset-1 border-2 border-red-500/30 rounded-full animate-pulse"></div>
+                    <div className="absolute -inset-1 border-2 border-red-500/30 rounded-full"></div>
                   </div>
                 </div>
               )}
@@ -663,7 +661,6 @@ const AnalysisPage = () => {
                   className="bg-gradient-to-r from-red-500 via-red-400 to-red-300 h-4 rounded-full transition-all duration-500 relative"
                   style={{ width: `${((currentStep + 1) / steps.length) * 100}%` }}
                 >
-                  <div className="absolute inset-0 bg-white/30 animate-pulse"></div>
                 </div>
               </div>
             </div>
@@ -729,7 +726,7 @@ const AnalysisPage = () => {
                   )}
 
                   {index === currentStep && isAnalyzing && (
-                    <div className="absolute top-2 right-2 bg-blue-500 text-white text-xs px-2 py-1 rounded-full animate-pulse">
+                    <div className="absolute top-2 right-2 bg-blue-500 text-white text-xs px-2 py-1 rounded-full">
                       EM ANDAMENTO
                     </div>
                   )}
@@ -999,6 +996,13 @@ const AnalysisPage = () => {
                         : 'hover:scale-102'
                     }`}
                   >
+                    {/* Badge 20% OFF */}
+                    <div className="absolute -top-2 -left-2 z-10">
+                      <div className="bg-gradient-to-r from-red-500 to-red-600 text-white px-4 py-2 rounded-lg shadow-lg transform -rotate-3">
+                        <span className="font-black text-sm tracking-wider">20% OFF</span>
+                      </div>
+                    </div>
+
                     <div className={`relative p-8 rounded-3xl transition-all duration-300 ${
                       paymentMethod === 'card'
                         ? 'bg-white border-3 border-red-500 shadow-2xl shadow-red-500/30'
@@ -1292,17 +1296,16 @@ const AnalysisPage = () => {
           )}
 
           {/* Security Notice */}
-          <div className="glass-card p-8 text-center floating-element">
+          <div className="glass-card p-8 text-center ">
             <div className="flex items-center justify-center mb-6">
               <div className="relative">
                 <div className="bg-green-500/20 p-4 rounded-full border-2 border-green-500/50">
                   <CheckCircle className="w-12 h-12 text-green-400" />
                 </div>
-                <div className="absolute -inset-1 bg-green-500/20 rounded-full animate-pulse"></div>
               </div>
             </div>
             <h3 className="font-bold text-2xl text-gray-800 mb-4">
-              🔒 Análise 100% Segura e Anônima
+              Análise 100% Segura e Anônima
             </h3>
             <p className="text-gray-700 text-lg">
               Seus dados são criptografados e não são armazenados em nossos servidores.

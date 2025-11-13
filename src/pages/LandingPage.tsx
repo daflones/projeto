@@ -279,14 +279,14 @@ const LandingPage = () => {
           </h3>
           
           <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
-            <div className="glass-card p-6 floating-element">
+            <div className="glass-card p-6 ">
               <div className="flex items-center mb-4">
                 <div className="w-12 h-12 bg-pink-500/20 rounded-full flex items-center justify-center border border-pink-500/30">
-                  <span className="text-2xl">👩</span>
+                  <span className="text-2xl font-bold text-pink-600">A</span>
                 </div>
                 <div className="ml-3">
                   <h4 className="font-semibold text-gray-800">Ana M.</h4>
-                  <div className="text-yellow-400">⭐⭐⭐⭐⭐</div>
+                  <div className="text-sm text-gray-600 font-medium">5/5 estrelas</div>
                 </div>
               </div>
               <p className="text-gray-700 italic">
@@ -294,14 +294,14 @@ const LandingPage = () => {
               </p>
             </div>
 
-            <div className="glass-card p-6 floating-element">
+            <div className="glass-card p-6 ">
               <div className="flex items-center mb-4">
                 <div className="w-12 h-12 bg-blue-500/20 rounded-full flex items-center justify-center border border-blue-500/30">
-                  <span className="text-2xl">👨</span>
+                  <span className="text-2xl font-bold text-blue-600">C</span>
                 </div>
                 <div className="ml-3">
                   <h4 className="font-semibold text-gray-800">Carlos R.</h4>
-                  <div className="text-yellow-400">⭐⭐⭐⭐⭐</div>
+                  <div className="text-sm text-gray-600 font-medium">5/5 estrelas</div>
                 </div>
               </div>
               <p className="text-gray-700 italic">
@@ -309,14 +309,14 @@ const LandingPage = () => {
               </p>
             </div>
 
-            <div className="glass-card p-6 floating-element">
+            <div className="glass-card p-6 ">
               <div className="flex items-center mb-4">
                 <div className="w-12 h-12 bg-green-500/20 rounded-full flex items-center justify-center border border-green-500/30">
-                  <span className="text-2xl">👩</span>
+                  <span className="text-2xl font-bold text-green-600">M</span>
                 </div>
                 <div className="ml-3">
                   <h4 className="font-semibold text-gray-800">Mariana S.</h4>
-                  <div className="text-yellow-400">⭐⭐⭐⭐⭐</div>
+                  <div className="text-sm text-gray-600 font-medium">5/5 estrelas</div>
                 </div>
               </div>
               <p className="text-gray-700 italic">
