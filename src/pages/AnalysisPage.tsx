@@ -996,13 +996,6 @@ const AnalysisPage = () => {
                         : 'hover:scale-102'
                     }`}
                   >
-                    {/* Badge 20% OFF */}
-                    <div className="absolute -top-2 -left-2 z-10">
-                      <div className="bg-gradient-to-r from-red-500 to-red-600 text-white px-4 py-2 rounded-lg shadow-lg transform -rotate-3">
-                        <span className="font-black text-sm tracking-wider">20% OFF</span>
-                      </div>
-                    </div>
-
                     <div className={`relative p-8 rounded-3xl transition-all duration-300 ${
                       paymentMethod === 'card'
                         ? 'bg-white border-3 border-red-500 shadow-2xl shadow-red-500/30'

@@ -493,32 +493,56 @@ export async function getPlansViewedCount(
   endDate?: Date
 ): Promise<number> {
   try {
-    // Buscar todos os registros de plans_viewed
-    const query = supabase
-      .from('conversion_funnel')
-      .select('user_session_id, completed_at')
-      .eq('step_name', 'plans_viewed')
+    // Usar RPC para contar DISTINCT diretamente no banco (sem limite de 1000)
+    const { data, error } = await supabase.rpc('count_plans_viewed', {
+      p_start_date: startDate?.toISOString() || null,
+      p_end_date: endDate?.toISOString() || null
+    })
 
-    const { data, error } = await query
+    if (error) {
+      
+      // FALLBACK: Buscar todos os registros com paginação
+      let allData: any[] = []
+      let page = 0
+      const pageSize = 1000
+      let hasMore = true
 
-    if (error || !data || data.length === 0) {
-      return 0
+      while (hasMore) {
+        let query = supabase
+          .from('conversion_funnel')
+          .select('user_session_id, completed_at')
+          .eq('step_name', 'plans_viewed')
+          .order('completed_at', { ascending: false })
+          .range(page * pageSize, (page + 1) * pageSize - 1)
+
+        if (startDate) {
+          query = query.gte('completed_at', startDate.toISOString())
+        }
+        if (endDate) {
+          query = query.lte('completed_at', endDate.toISOString())
+        }
+
+        const { data: pageData, error: pageError } = await query
+
+        if (pageError || !pageData || pageData.length === 0) {
+          hasMore = false
+          break
+        }
+
+        allData = [...allData, ...pageData]
+        
+        if (pageData.length < pageSize) {
+          hasMore = false
+        }
+        
+        page++
+      }
+      
+      const uniqueSessions = new Set(allData.map(row => row.user_session_id))
+      return uniqueSessions.size
     }
 
-    // Filtrar por data se fornecido
-    let filteredData = data
-    if (startDate || endDate) {
-      filteredData = data.filter(row => {
-        const rowDate = new Date(row.completed_at)
-        if (startDate && rowDate < startDate) return false
-        if (endDate && rowDate > endDate) return false
-        return true
-      })
-    }
-
-    // Contar sessões únicas
-    const uniqueSessions = new Set(filteredData.map(row => row.user_session_id))
-    return uniqueSessions.size
+    return data || 0
   } catch (error) {
     return 0
   }
