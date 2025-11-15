@@ -93,21 +93,9 @@ const AnalysisPage = () => {
   const basePaymentCreatedRef = useRef(false)
   const stepRefs = useRef<(HTMLDivElement | null)[]>([])
 
-  const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
-  const HEADER_OFFSET = 120
-
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'auto' })
   }, [])
-
-  const scrollElement = (element: HTMLElement | null) => {
-    if (!element) return
-    requestAnimationFrame(() => {
-      const rect = element.getBoundingClientRect()
-      const targetY = window.scrollY + rect.top - HEADER_OFFSET
-      window.scrollTo({ top: targetY, behavior: 'smooth' })
-    })
-  }
 
   const planOptions = useMemo(() => [
     {
@@ -454,7 +442,6 @@ const AnalysisPage = () => {
   }, [navigate])
 
   const analysisResultsSavedRef = useRef(false)
-  const autoCheckoutTriggeredRef = useRef(false)
 
   async function persistAnalysisResults() {
     if (analysisResultsSavedRef.current) {
@@ -512,9 +499,19 @@ const AnalysisPage = () => {
     }
   }
 
-  async function handleProceedToPayment({ forceSkipPlans = false, skipScroll = false }: { forceSkipPlans?: boolean; skipScroll?: boolean } = {}) {
-    const planValue = selectedPlanOption.priceValue
-    const planName = selectedPlanOption.name
+  async function handleProceedToPayment({
+    forceSkipPlans = false,
+    skipScroll = false,
+    planOverride
+  }: {
+    forceSkipPlans?: boolean
+    skipScroll?: boolean
+    planOverride?: 'basic' | 'premium'
+  } = {}) {
+    const effectivePlanId = planOverride ?? selectedPlan
+    const planMeta = planOptions.find(option => option.id === effectivePlanId) ?? selectedPlanOption
+    const planValue = planMeta.priceValue
+    const planName = planMeta.name
     const cleanWhatsapp = analysisData?.whatsapp?.replace(/\D/g, '') || ''
 
     if (!forceSkipPlans && !showPaymentPlans && !planPreselected) {
@@ -523,7 +520,10 @@ const AnalysisPage = () => {
     }
 
     await persistAnalysisResults()
-    await syncPendingPayment(selectedPlan, displayName)
+    if (selectedPlan !== effectivePlanId) {
+      setSelectedPlan(effectivePlanId)
+    }
+    await syncPendingPayment(effectivePlanId, displayName)
 
     trackEvent('InitiateCheckout', {
       content_name: planName,
@@ -532,11 +532,11 @@ const AnalysisPage = () => {
     })
 
     trackAnalytics('checkout', 'Checkout Initiated', '/analise', cleanWhatsapp, {
-      plan: selectedPlan,
+      plan: effectivePlanId,
       plan_name: planName,
       value: planValue
     })
-    trackFunnel('checkout_initiated', 5, cleanWhatsapp, { plan: selectedPlan, plan_name: planName })
+    trackFunnel('checkout_initiated', 5, cleanWhatsapp, { plan: effectivePlanId, plan_name: planName })
 
     setShowPaymentMethods(true)
 
@@ -549,44 +549,6 @@ const AnalysisPage = () => {
       }, 200)
     }
   }
-
-  useEffect(() => {
-    if (!analysisData) return
-    if (!planPreselected) return
-    if (showPaymentMethods) return
-    if (isAnalyzing) return
-    if (autoCheckoutTriggeredRef.current) return
-
-    autoCheckoutTriggeredRef.current = true
-
-    const runGuidedFlow = async () => {
-      await wait(300)
-      scrollElement(resultsSectionRef.current)
-
-      await wait(1200)
-      await handleProceedToPayment({ forceSkipPlans: true, skipScroll: true })
-    }
-
-    runGuidedFlow().catch(() => {
-      autoCheckoutTriggeredRef.current = false
-    })
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [analysisData, planPreselected, showPaymentMethods, isAnalyzing])
-
-  useEffect(() => {
-    if (!analysisData) return
-    if (isAnalyzing) return
-    if (planPreselected) return
-    if (showPaymentPlans) return
-
-    const timeoutId = window.setTimeout(() => {
-      void handleShowPaymentPlans({ skipScroll: true })
-    }, 1200)
-
-    return () => {
-      window.clearTimeout(timeoutId)
-    }
-  }, [analysisData, isAnalyzing, planPreselected, showPaymentPlans])
 
   useEffect(() => {
     if (planPreselected) {
@@ -1303,7 +1265,7 @@ const AnalysisPage = () => {
                           nextData.selectedPlanName = plan.name
                           return nextData
                         })
-                        void syncPendingPayment(plan.id, displayName)
+                        void handleProceedToPayment({ forceSkipPlans: true, planOverride: plan.id })
                       }}
                       className={`group relative block rounded-[28px] border-2 p-6 text-left transition-all duration-300 ${
                         isSelected
