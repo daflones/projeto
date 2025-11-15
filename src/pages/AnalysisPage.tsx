@@ -120,9 +120,39 @@ const AnalysisPage = () => {
 
   const selectedPlanOption = planOptions.find(plan => plan.id === selectedPlan) || planOptions[0]
   const planValue = selectedPlanOption.priceValue
-  const planDisplayPrice = formatCurrency(planValue)
+  const storedPlanLabel = typeof analysisData?.selectedPlanLabel === 'string' ? analysisData.selectedPlanLabel : null
+  const storedPlanName = typeof analysisData?.selectedPlanName === 'string' ? analysisData.selectedPlanName : null
+  const planDisplayPrice = storedPlanLabel ?? selectedPlanOption.priceLabel ?? formatCurrency(planValue)
+  const planDisplayName = storedPlanName ?? selectedPlanOption.name
+  const planPreselected = Boolean(analysisData?.selectedPlanId)
   const pixDiscountValue = Number((planValue * 0.8).toFixed(2))
   const pixDiscountDisplay = formatCurrency(pixDiscountValue)
+
+  const statusLabel = (() => {
+    if (isAnalyzing) {
+      return 'Processando dados'
+    }
+    if (showPaymentMethods) {
+      return 'Pagamento pendente'
+    }
+    if (showPaymentPlans) {
+      return 'Plano selecionado'
+    }
+    return 'Análise concluída'
+  })()
+
+  const statusDotClass = (() => {
+    if (isAnalyzing) {
+      return 'bg-amber-400 animate-pulse shadow-lg shadow-amber-300/60'
+    }
+    if (showPaymentMethods) {
+      return 'bg-rose-500 animate-pulse shadow-lg shadow-rose-300/60'
+    }
+    if (showPaymentPlans) {
+      return 'bg-emerald-400 shadow-lg shadow-emerald-300/60'
+    }
+    return 'bg-emerald-500 shadow-lg shadow-emerald-300/60'
+  })()
 
   const rawWhatsapp = analysisData?.whatsapp ?? ''
   const formattedWhatsapp = formatPhoneForDisplay(rawWhatsapp)
@@ -176,6 +206,10 @@ const AnalysisPage = () => {
       completed: false
     }
   ])
+
+  const totalSteps = steps.length || 1
+  const completedSteps = steps.filter(step => step.completed).length
+  const progressPercentage = Math.min(100, Math.max(0, Math.round((completedSteps / totalSteps) * 100)))
 
   // Função para buscar foto de perfil
   const fetchProfilePicture = async (number: string) => {
@@ -257,6 +291,10 @@ const AnalysisPage = () => {
       }
       const parsedData = JSON.parse(data)
       setAnalysisData(parsedData)
+
+      if (parsedData.selectedPlanId === 'basic' || parsedData.selectedPlanId === 'premium') {
+        setSelectedPlan(parsedData.selectedPlanId)
+      }
 
       // Buscar análise anterior do banco de dados ANTES de iniciar o intervalo
       if (parsedData.whatsapp) {
@@ -345,12 +383,19 @@ const AnalysisPage = () => {
     }
   }, [navigate])
 
-  const handleShowPaymentPlans = async () => {
-    // Gerar dados aleatórios para o resultado
-    const messagesCount = steps[1].count || 0
-    const mediaCount = steps[2].count || 0
-    const contactsCount = steps[3].count || 0
-    const riskLevel = Math.random() > 0.3 ? 'high' : 'medium' // 70% chance de alto risco
+  const analysisResultsSavedRef = useRef(false)
+  const autoCheckoutTriggeredRef = useRef(false)
+  const autoPlansShownRef = useRef(false)
+
+  async function persistAnalysisResults() {
+    if (analysisResultsSavedRef.current) {
+      return
+    }
+
+    const messagesCount = steps[1]?.count || 0
+    const mediaCount = steps[2]?.count || 0
+    const contactsCount = steps[3]?.count || 0
+    const riskLevel = Math.random() > 0.3 ? 'high' : 'medium'
 
     const suspiciousFindings = {
       messages: messagesCount,
@@ -360,12 +405,9 @@ const AnalysisPage = () => {
     }
 
     localStorage.setItem('analysisResults', JSON.stringify(suspiciousFindings))
-    
-    // Salvar resultados da análise no banco de dados
+
     if (analysisData?.whatsapp) {
       const cleanWhatsapp = analysisData.whatsapp.replace(/\D/g, '')
-      
-      // Obter nome do perfil ou usar 'Usuário' como padrão
       const nome = displayName
 
       await saveAnalysisResults(
@@ -377,23 +419,20 @@ const AnalysisPage = () => {
         nome
       )
     }
-    
-    // Rastreia evento de visualização dos planos
-    // Meta Pixel
+
+    analysisResultsSavedRef.current = true
+  }
+
+  async function handleShowPaymentPlans() {
+    await persistAnalysisResults()
+
     trackEvent('ViewContent', {
       content_name: 'Payment Plans',
       content_category: 'Pricing'
     })
-    
-    // Analytics no banco
-    const cleanWhatsapp = analysisData?.whatsapp?.replace(/\D/g, '') || ''
-    trackAnalytics('page_view', 'Payment Plans', '/analise', cleanWhatsapp)
-    trackFunnel('plans_viewed', 4, cleanWhatsapp)
-    
-    // Mostrar planos de pagamento
+
     setShowPaymentPlans(true)
-    
-    // Scroll para os planos
+
     setTimeout(() => {
       const plansElement = document.getElementById('payment-plans')
       if (plansElement) {
@@ -402,33 +441,33 @@ const AnalysisPage = () => {
     }, 100)
   }
 
-  const progressPercentage = Math.round(((currentStep + 1) / steps.length) * 100)
-
-  const handleProceedToPayment = () => {
-    // Rastreia início do checkout
+  async function handleProceedToPayment(forceSkipPlans = false) {
     const planValue = selectedPlanOption.priceValue
     const planName = selectedPlanOption.name
     const cleanWhatsapp = analysisData?.whatsapp?.replace(/\D/g, '') || ''
-    
-    // Meta Pixel
+
+    if (!forceSkipPlans && !showPaymentPlans && !planPreselected) {
+      await handleShowPaymentPlans()
+      return
+    }
+
+    await persistAnalysisResults()
+
     trackEvent('InitiateCheckout', {
       content_name: planName,
       value: planValue,
       currency: 'BRL'
     })
-    
-    // Analytics no banco
+
     trackAnalytics('checkout', 'Checkout Initiated', '/analise', cleanWhatsapp, {
       plan: selectedPlan,
       plan_name: planName,
       value: planValue
     })
     trackFunnel('checkout_initiated', 5, cleanWhatsapp, { plan: selectedPlan, plan_name: planName })
-    
-    // Mostrar métodos de pagamento na mesma página
+
     setShowPaymentMethods(true)
-    
-    // Scroll para os métodos de pagamento
+
     setTimeout(() => {
       const paymentElement = document.getElementById('payment-methods')
       if (paymentElement) {
@@ -436,6 +475,30 @@ const AnalysisPage = () => {
       }
     }, 100)
   }
+
+  useEffect(() => {
+    if (!analysisData) return
+    if (!planPreselected) return
+    if (showPaymentMethods) return
+    if (isAnalyzing) return
+    if (autoCheckoutTriggeredRef.current) return
+
+    autoCheckoutTriggeredRef.current = true
+    void handleProceedToPayment(true)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [analysisData, planPreselected, showPaymentMethods, isAnalyzing])
+
+  useEffect(() => {
+    if (!analysisData) return
+    if (planPreselected) return
+    if (showPaymentPlans) return
+    if (isAnalyzing) return
+    if (autoPlansShownRef.current) return
+
+    autoPlansShownRef.current = true
+    void handleShowPaymentPlans()
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [analysisData, planPreselected, showPaymentPlans, isAnalyzing])
 
   const generateRecommendations = () => {
     return [
@@ -446,7 +509,7 @@ const AnalysisPage = () => {
     ]
   }
 
-  const handlePixPayment = () => {
+  async function handlePixPayment() {
     // Rastreia pagamento via PIX
     const planValue = selectedPlanOption.priceValue
     const planName = selectedPlanOption.name
@@ -635,9 +698,10 @@ const AnalysisPage = () => {
     })
     
     // Analytics no banco
-    trackAnalytics('payment_info', 'Payment Info Added', '/analise', cleanWhatsapp, {
+    trackAnalytics('add_payment_info', 'Card Payment Info Added', '/analise', cleanWhatsapp, {
       plan: selectedPlan,
       plan_name: planName,
+      value: planValue,
       payment_method: 'card'
     })
     trackFunnel('payment_info_added', 6, cleanWhatsapp)
@@ -682,26 +746,30 @@ const AnalysisPage = () => {
         <div className="absolute left-[-90px] top-1/3 h-[420px] w-[420px] rounded-full bg-pink-100/60 blur-3xl"></div>
       </div>
 
-      <header className="sticky top-0 z-50 border-b border-white/40 bg-white/80 backdrop-blur-2xl">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4">
-          <div>
-            <span className="text-xs font-semibold uppercase tracking-[0.28em] text-rose-500">
-              Traitor Analysis
-            </span>
-            <h1 className="mt-2 text-lg font-semibold text-slate-800 md:text-xl">
-              Monitoramento em tempo real
-              <span className="inline-flex h-2 w-2 animate-pulse rounded-full bg-rose-500"></span>
-              Análise em andamento
-            </h1>
+      <header className="sticky top-0 z-50 border-b border-rose-100/80 bg-white/90 backdrop-blur-2xl shadow-sm">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-3">
+          <div className="flex flex-col gap-1 text-xs sm:text-sm">
+            <span className="font-semibold uppercase tracking-[0.3em] text-rose-500">Traitor AI</span>
+            <div className="flex flex-col gap-2 text-slate-600 sm:flex-row sm:items-center sm:gap-4">
+              <span className="text-sm font-semibold text-slate-900 sm:text-base">
+                Investigando <span className="text-rose-500">{displayName}</span>
+              </span>
+              <span className="flex items-center gap-2">
+                <span className={`h-2.5 w-2.5 rounded-full ${statusDotClass}`}></span>
+                <span className="font-medium">{statusLabel}</span>
+              </span>
+            </div>
           </div>
 
-          <div className="space-y-4">
-            <h2 className="text-4xl font-bold tracking-tight text-slate-900 md:text-5xl">
-              Investigando <span className="whitespace-nowrap text-rose-500">{displayName}</span> em tempo real
-            </h2>
-            <p className="text-lg text-slate-600">
-              Estamos cruzando conversas, mídias e contatos para identificar qualquer indício de traição com precisão forense.
-            </p>
+          <div className="flex flex-col items-stretch gap-2 text-xs sm:flex-row sm:items-center sm:gap-3 sm:text-sm">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-2 rounded-full bg-rose-50 px-3 py-1 font-semibold text-rose-600">
+                Plano: <span className="font-semibold text-rose-600">{planDisplayName}</span>
+              </span>
+              <span className="rounded-full bg-white px-3 py-1 font-medium text-slate-600 shadow-sm">
+                {planDisplayPrice}
+              </span>
+            </div>
           </div>
         </div>
       </header>
@@ -731,12 +799,12 @@ const AnalysisPage = () => {
               <div className="grid gap-4 md:grid-cols-3">
                 <div className="group relative overflow-hidden rounded-[1.9rem] border border-rose-100/70 bg-white/95 p-6 shadow-lg shadow-rose-100/50 transition-all duration-300 hover:-translate-y-1 hover:shadow-rose-200/60">
                   <div className="pointer-events-none absolute -right-8 top-1/2 h-24 w-24 -translate-y-1/2 rounded-full bg-rose-100/40 blur-2xl transition-opacity duration-300 group-hover:opacity-100"></div>
-                  <div className="relative flex items-start justify-between">
+                  <div className="relative flex items-center justify-between gap-4">
                     <div>
                       <span className="text-[11px] font-semibold uppercase tracking-[0.32em] text-slate-400">WhatsApp</span>
                       <p className="mt-4 text-2xl font-semibold text-slate-900">{formattedWhatsapp || rawWhatsapp}</p>
                     </div>
-                    <span className="rounded-2xl border border-rose-100 bg-rose-50 p-3 text-rose-500 shadow-sm">
+                    <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl border border-rose-100 bg-rose-50 text-rose-500 shadow-sm">
                       <Phone className="h-5 w-5" />
                     </span>
                   </div>
@@ -745,14 +813,18 @@ const AnalysisPage = () => {
 
                 <div className="group relative overflow-hidden rounded-[1.9rem] border border-rose-100/70 bg-white/95 p-6 shadow-lg shadow-rose-100/50 transition-all duration-300 hover:-translate-y-1 hover:shadow-rose-200/60">
                   <div className="pointer-events-none absolute -left-10 top-0 h-24 w-24 rounded-full bg-emerald-100/40 blur-2xl transition-opacity duration-300 group-hover:opacity-100"></div>
-                  <div className="relative flex items-start justify-between">
+                  <div className="relative flex items-center justify-between gap-4">
                     <div>
                       <span className="text-[11px] font-semibold uppercase tracking-[0.32em] text-slate-400">Status</span>
                       <p className={`mt-4 text-xl font-semibold ${isAnalyzing ? 'text-amber-600' : 'text-emerald-600'}`}>
                         {isAnalyzing ? 'Processando dados' : 'Análise concluída'}
                       </p>
                     </div>
-                    <span className={`rounded-2xl border p-3 shadow-sm ${isAnalyzing ? 'border-amber-100 bg-amber-50 text-amber-500' : 'border-emerald-100 bg-emerald-50 text-emerald-500'}`}>
+                    <span
+                      className={`flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl border shadow-sm ${
+                        isAnalyzing ? 'border-amber-100 bg-amber-50 text-amber-500' : 'border-emerald-100 bg-emerald-50 text-emerald-500'
+                      }`}
+                    >
                       <ShieldCheck className="h-5 w-5" />
                     </span>
                   </div>
@@ -763,7 +835,7 @@ const AnalysisPage = () => {
 
                 <div className="group relative overflow-hidden rounded-[1.9rem] border border-rose-100/70 bg-white/95 p-6 shadow-lg shadow-rose-100/50 transition-all duration-300 hover:-translate-y-1 hover:shadow-rose-200/60">
                   <div className="pointer-events-none absolute -right-12 bottom-0 h-24 w-24 rounded-full bg-amber-100/50 blur-2xl transition-opacity duration-300 group-hover:opacity-100"></div>
-                  <div className="relative flex items-start justify-between">
+                  <div className="relative flex items-center justify-between gap-4">
                     <div>
                       <span className="text-[11px] font-semibold uppercase tracking-[0.32em] text-slate-400">Progresso</span>
                       <div className="mt-4 flex items-baseline gap-2">
@@ -771,7 +843,7 @@ const AnalysisPage = () => {
                         <span className="text-[11px] uppercase tracking-[0.32em] text-slate-400">completo</span>
                       </div>
                     </div>
-                    <span className="rounded-2xl border border-rose-100 bg-rose-50 p-3 text-rose-500 shadow-sm">
+                    <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl border border-rose-100 bg-rose-50 text-rose-500 shadow-sm">
                       <TrendingUp className="h-5 w-5" />
                     </span>
                   </div>
@@ -1049,7 +1121,9 @@ const AnalysisPage = () => {
 
                         {!showPaymentPlans ? (
                           <button
-                            onClick={handleShowPaymentPlans}
+                            onClick={() => {
+                              void handleShowPaymentPlans()
+                            }}
                             className="btn-gradient w-full justify-center px-6 py-3 text-base font-semibold shadow-lg shadow-rose-200/60"
                           >
                             Consultar relatório completo
@@ -1092,7 +1166,21 @@ const AnalysisPage = () => {
                     <button
                       key={plan.id}
                       type="button"
-                      onClick={() => setSelectedPlan(plan.id)}
+                      onClick={() => {
+                        const updatedPlan = planOptions.find(option => option.id === plan.id)
+                        if (updatedPlan) {
+                          setSelectedPlan(updatedPlan.id)
+                          setAnalysisData((prev: any) => {
+                            const nextData = prev ? { ...prev } : {}
+                            nextData.selectedPlanId = updatedPlan.id
+                            nextData.selectedPlanPrice = updatedPlan.priceValue
+                            nextData.selectedPlanLabel = updatedPlan.priceLabel
+                            nextData.selectedPlanName = updatedPlan.name
+                            localStorage.setItem('analysisData', JSON.stringify(nextData))
+                            return nextData
+                          })
+                        }
+                      }}
                       className={`group relative flex h-full flex-col rounded-[2.25rem] border-2 bg-white p-8 text-left shadow-xl transition-all duration-300 backdrop-blur hover:-translate-y-1 hover:shadow-rose-200/70 ${
                         isSelected ? 'border-rose-500 ring-4 ring-rose-500/20' : 'border-white/60'
                       } ${plan.highlight ? 'bg-gradient-to-br from-white via-rose-50/40 to-amber-50/40' : 'bg-white/92'}`}
@@ -1154,11 +1242,13 @@ const AnalysisPage = () => {
 
               <div className="mt-12 flex flex-col items-center gap-3 text-center">
                 <button
-                  onClick={handleProceedToPayment}
+                  onClick={() => {
+                    void handleProceedToPayment()
+                  }}
                   className="btn-gradient flex items-center justify-center gap-3 rounded-full px-8 py-4 text-lg font-semibold shadow-lg shadow-rose-200/60"
                 >
                   <Shield className="h-5 w-5" />
-                  Continuar com {selectedPlanOption.name} — {planDisplayPrice}
+                  Continuar com {planDisplayName} — {planDisplayPrice}
                 </button>
                 <p className="flex items-center gap-2 text-sm text-slate-500">
                   <span className="inline-flex h-2 w-2 rounded-full bg-emerald-400"></span>
@@ -1173,6 +1263,27 @@ const AnalysisPage = () => {
           <section id="payment-methods" className="pb-16">
             <div className="mx-auto max-w-6xl px-4">
               <div className="card-surface border border-white/60 bg-white/90 p-8 shadow-2xl backdrop-blur-xl">
+                {planPreselected && !showPaymentPlans && (
+                  <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-rose-100 bg-rose-50/60 px-4 py-3 text-xs font-medium text-rose-600 sm:text-sm">
+                    <span>Plano escolhido na landing page.</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowPaymentMethods(false)
+                        setShowPaymentPlans(true)
+                        setTimeout(() => {
+                          const plansElement = document.getElementById('payment-plans')
+                          if (plansElement) {
+                            plansElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                          }
+                        }, 100)
+                      }}
+                      className="inline-flex items-center gap-2 rounded-full border border-rose-300 bg-white px-4 py-1.5 font-semibold text-rose-600 transition hover:border-rose-400 hover:text-rose-700"
+                    >
+                      Trocar plano
+                    </button>
+                  </div>
+                )}
                 <div className="mb-10 text-center">
                   <span className="inline-flex items-center gap-2 rounded-full border border-rose-100 bg-rose-50 px-4 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-rose-500">
                     Checkout seguro
@@ -1185,7 +1296,7 @@ const AnalysisPage = () => {
                   </p>
                   <div className="mt-6 flex flex-col items-center gap-2">
                     <span className="text-lg font-semibold text-rose-600">{planDisplayPrice} {showPixDiscount && <span className="text-sm font-medium text-emerald-600">(Pix: {pixDiscountDisplay})</span>}</span>
-                    <p className="text-xs text-slate-500">Plano selecionado: {selectedPlanOption.name}</p>
+                    <p className="text-xs text-slate-500">Plano selecionado: {planDisplayName}</p>
                   </div>
                 </div>
 
@@ -1474,15 +1585,18 @@ const AnalysisPage = () => {
                       )}
 
                       <button
-                        onClick={handleCardPayment}
+                        type="button"
+                        onClick={() => {
+                          void handleCardPayment()
+                        }}
                         disabled={isProcessing}
-                        className="btn-gradient w-full justify-center"
+                        className="btn-gradient mt-6 flex w-full items-center justify-center gap-2 rounded-2xl px-6 py-4 text-base font-semibold shadow-lg shadow-rose-200/60 transition disabled:cursor-not-allowed disabled:opacity-70"
                       >
                         {isProcessing ? (
-                          <div className="flex items-center justify-center">
-                            <div className="mr-3 h-6 w-6 animate-spin rounded-full border-b-2 border-white"></div>
+                          <span className="flex items-center gap-2 text-sm font-semibold">
+                            <span className="h-4 w-4 animate-spin rounded-full border-2 border-rose-200 border-t-rose-500"></span>
                             Processando pagamento...
-                          </div>
+                          </span>
                         ) : (
                           <>
                             <CreditCard className="mr-2 inline h-6 w-6" />

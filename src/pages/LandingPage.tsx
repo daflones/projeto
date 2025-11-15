@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Menu,
@@ -32,6 +32,10 @@ const LandingPage = () => {
   })
   const [isLoading, setIsLoading] = useState(false)
   const [phoneError, setPhoneError] = useState('')
+  const [selectedPlanId, setSelectedPlanId] = useState<'basic' | 'premium' | null>(null)
+  const [highlightPhonePrompt, setHighlightPhonePrompt] = useState(false)
+  const formRef = useRef<HTMLFormElement>(null)
+  const phoneInputRef = useRef<HTMLInputElement>(null)
 
   // Rastreia visualização da landing page
   useEffect(() => {
@@ -103,7 +107,11 @@ const LandingPage = () => {
 
     setPhoneError('')
     setIsLoading(true)
-    
+    setHighlightPhonePrompt(false)
+
+    const planId = selectedPlanId ?? 'premium'
+    const planMeta = pricingPlans.find(plan => plan.id === planId)
+
     // Salvar lead no banco de dados
     const cleanWhatsapp = formData.whatsapp.replace(/\D/g, '')
     await saveLead(cleanWhatsapp)
@@ -122,7 +130,11 @@ const LandingPage = () => {
     // Salvar dados no localStorage para usar nas próximas páginas
     localStorage.setItem('analysisData', JSON.stringify({
       ...formData,
-      whatsapp: cleanWhatsapp
+      whatsapp: cleanWhatsapp,
+      selectedPlanId: planId,
+      selectedPlanPrice: planMeta?.priceValue ?? 49.99,
+      selectedPlanLabel: planMeta?.price ?? 'R$ 49,99',
+      selectedPlanName: planMeta?.name ?? 'Plano Vitalício'
     }))
     
     // Simular um pequeno delay para parecer mais real
@@ -145,6 +157,10 @@ const LandingPage = () => {
       // Limpa erro ao digitar
       if (phoneError) {
         setPhoneError('')
+      }
+
+      if (formatted.length > 0 && highlightPhonePrompt) {
+        setHighlightPhonePrompt(false)
       }
     } else {
       setFormData({
@@ -287,9 +303,12 @@ const LandingPage = () => {
 
   const pricingPlans = [
     {
+      id: 'basic' as const,
       name: 'Análise Completa',
       price: 'R$ 9,99',
+      priceValue: 9.99,
       tag: 'Ideal para quem quer uma confirmação imediata',
+      highlight: false,
       items: [
         'Relatório completo com todas as evidências',
         'Pontuação de risco e insights acionáveis',
@@ -298,8 +317,10 @@ const LandingPage = () => {
       ]
     },
     {
+      id: 'premium' as const,
       name: 'Plano Vitalício',
       price: 'R$ 49,99',
+      priceValue: 49.99,
       tag: 'Investigue sempre que quiser, sem limites',
       highlight: true,
       items: [
@@ -310,6 +331,10 @@ const LandingPage = () => {
       ]
     }
   ]
+
+  const selectedPlan = selectedPlanId
+    ? pricingPlans.find(plan => plan.id === selectedPlanId)
+    : undefined
 
   const faqItems = [
     {
@@ -344,6 +369,29 @@ const LandingPage = () => {
     event.preventDefault()
     setIsMenuOpen(false)
     window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const handlePlanSelect = (plan: typeof pricingPlans[number]) => {
+    setSelectedPlanId(plan.id)
+    const hasPhoneNumber = formData.whatsapp.replace(/\D/g, '').length > 0
+    setHighlightPhonePrompt(!hasPhoneNumber)
+
+    formRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    setTimeout(() => {
+      phoneInputRef.current?.focus()
+    }, 400)
+
+    trackEvent('AddToCart', {
+      content_name: plan.name,
+      value: plan.priceValue,
+      currency: 'BRL',
+      content_category: 'Landing Plans'
+    })
+
+    trackAnalytics('plan_select', 'Landing Plan Click', '/', plan.id, {
+      plan: plan.id,
+      value: plan.priceValue
+    })
   }
 
   return (
@@ -424,13 +472,29 @@ const LandingPage = () => {
                   Com o Traitor, você descobre em minutos se existe traição. Nossa IA investiga conversas, mídias e contatos para entregar um relatório completo e confidencial.
                 </p>
 
-                <form onSubmit={handleSubmit} className="rounded-3xl bg-white p-6 shadow-2xl shadow-pink-100/70 border border-pink-100">
+                <form ref={formRef} onSubmit={handleSubmit} className="rounded-3xl bg-white p-6 shadow-2xl shadow-pink-100/70 border border-pink-100">
                   <div className="flex flex-col gap-4 md:flex-row md:items-end">
                     <div className="flex-1">
-                      <label className="block text-sm font-semibold text-slate-700 mb-2">
-                        Informe o WhatsApp a ser analisado
-                      </label>
-                      <div className={`flex items-center gap-3 rounded-2xl border px-4 py-3 transition ${phoneError ? 'border-red-400' : 'border-slate-200 focus-within:border-pink-400'}`}>
+                      <div className="mb-2 flex items-center justify-between gap-3">
+                        <label className="block text-sm font-semibold text-slate-700">
+                          Informe o WhatsApp a ser analisado
+                        </label>
+                        {highlightPhonePrompt && !formData.whatsapp && (
+                          <span className="inline-flex items-center gap-2 rounded-full bg-pink-100 px-3 py-1 text-xs font-semibold text-pink-600">
+                            <span className="h-2 w-2 rounded-full bg-pink-500 animate-pulse"></span>
+                            Insira o número para análise!
+                          </span>
+                        )}
+                      </div>
+                      <div
+                        className={`flex items-center gap-3 rounded-2xl border px-4 py-3 transition focus-within:border-pink-400 ${
+                          phoneError
+                            ? 'border-red-400 ring-2 ring-red-200'
+                            : highlightPhonePrompt && !formData.whatsapp
+                              ? 'border-pink-400 ring-2 ring-pink-200 shadow-[0_0_0_4px_rgba(244,114,182,0.25)]'
+                              : 'border-slate-200'
+                        }`}
+                      >
                         <PhoneCall className={`w-5 h-5 ${phoneError ? 'text-red-400' : 'text-pink-500'}`} />
                         <input
                           type="tel"
@@ -440,6 +504,7 @@ const LandingPage = () => {
                           placeholder="(11) 99999-9999"
                           maxLength={15}
                           className="w-full bg-transparent text-base text-slate-800 outline-none"
+                          ref={phoneInputRef}
                           required
                         />
                       </div>
@@ -447,6 +512,13 @@ const LandingPage = () => {
                         <p className="mt-2 text-sm font-medium text-red-500">{phoneError}</p>
                       ) : (
                         <p className="mt-2 text-xs text-slate-500">Nenhuma mensagem será enviada. Usamos o número apenas para gerar o relatório.</p>
+                      )}
+                      {selectedPlan && (
+                        <div className="mt-4 flex flex-wrap items-center gap-2 rounded-2xl border border-pink-100 bg-pink-50/80 px-4 py-2 text-sm text-pink-600">
+                          <span className="font-semibold uppercase tracking-[0.18em] text-pink-500">Plano escolhido</span>
+                          <span className="font-semibold text-pink-600">{selectedPlan.name}</span>
+                          <span className="text-pink-500">— {selectedPlan.price}</span>
+                        </div>
                       )}
                     </div>
                     <button
@@ -677,31 +749,45 @@ const LandingPage = () => {
               </p>
             </div>
 
-            <div className="mt-12 grid gap-6 md:grid-cols-2">
-              {pricingPlans.map(plan => (
-                <div
-                  key={plan.name}
-                  className={`pricing-card ${plan.highlight ? 'pricing-card-highlight' : ''}`}
-                >
-                  {plan.highlight && (
-                    <span className="badge-soft self-start">Mais Popular</span>
-                  )}
-                  <div className="space-y-2">
-                    <h3 className="text-2xl font-semibold text-slate-900">{plan.name}</h3>
-                    <p className="text-sm text-pink-600 font-medium">{plan.tag}</p>
-                    <p className="text-3xl font-bold text-slate-900">{plan.price}</p>
+            <div className="mt-12 grid gap-6 md:grid-cols-2 md:items-stretch">
+              {pricingPlans.map(plan => {
+                const isSelected = selectedPlanId === plan.id
+                return (
+                  <div
+                    key={plan.id}
+                    className={`pricing-card ${plan.highlight ? 'pricing-card-highlight' : ''} ${
+                      isSelected ? 'ring-2 ring-pink-200 border-pink-200 shadow-xl shadow-pink-200/60' : ''
+                    }`}
+                  >
+                    <div className="flex h-8 items-center">
+                      <span className={`badge-soft ${plan.highlight ? '' : 'invisible opacity-0'}`}>Mais Popular</span>
+                    </div>
+                    <div className="space-y-2">
+                      <h3 className="text-2xl font-semibold text-slate-900">{plan.name}</h3>
+                      <p className="text-sm text-pink-600 font-medium">{plan.tag}</p>
+                      <p className="text-3xl font-bold text-slate-900">{plan.price}</p>
+                    </div>
+                    <ul className="space-y-3 text-sm text-slate-600">
+                      {plan.items.map(item => (
+                        <li key={item} className="flex items-start gap-3">
+                          <CheckCircle2 className="mt-1 h-4 w-4 text-pink-500" />
+                          <span>{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                    <div className="mt-auto">
+                      <button
+                        type="button"
+                        className={`btn-gradient w-full transition ${isSelected ? 'ring-2 ring-white/70 shadow-lg shadow-pink-200/70' : ''}`}
+                        onClick={() => handlePlanSelect(plan)}
+                        aria-pressed={isSelected}
+                      >
+                        {isSelected ? 'Plano escolhido' : 'Quero esse plano'}
+                      </button>
+                    </div>
                   </div>
-                  <ul className="space-y-3 text-sm text-slate-600">
-                    {plan.items.map(item => (
-                      <li key={item} className="flex items-start gap-3">
-                        <CheckCircle2 className="mt-1 h-4 w-4 text-pink-500" />
-                        <span>{item}</span>
-                      </li>
-                    ))}
-                  </ul>
-                  <button className="btn-gradient w-full">Quero esse plano</button>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </div>
         </section>

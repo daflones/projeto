@@ -14,24 +14,32 @@ interface StatsCardProps {
 
 const StatsCard = ({ title, value, subtitle, icon: Icon, iconColor, trend }: StatsCardProps) => {
   return (
-    <div className="bg-gradient-to-br from-gray-800 to-gray-900 rounded-xl p-6 border border-gray-700 hover:border-gray-600 transition-all duration-300 hover:shadow-xl hover:shadow-red-500/10">
-      <div className="flex items-start justify-between mb-4">
-        <div className={`p-3 rounded-lg ${iconColor}`}>
-          <Icon className="w-6 h-6" />
+    <div className="group relative overflow-hidden rounded-[1.9rem] border border-white/80 bg-white/90 p-6 shadow-lg shadow-rose-100/40 transition-all duration-300 hover:-translate-y-1 hover:shadow-rose-200/60">
+      <div className="pointer-events-none absolute -right-10 top-0 h-32 w-32 rounded-full bg-gradient-to-br from-rose-100/70 via-pink-100/50 to-transparent blur-3xl transition-opacity duration-500 group-hover:opacity-100"></div>
+      <div className="pointer-events-none absolute -left-16 -bottom-16 h-36 w-36 rounded-full bg-gradient-to-br from-white via-amber-100/60 to-transparent blur-3xl opacity-60"></div>
+
+      <div className="relative mb-6 flex items-start justify-between">
+        <div
+          className={`inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-white/70 bg-white/80 text-rose-500 shadow-sm shadow-rose-100/30 transition-transform duration-300 group-hover:scale-105 ${iconColor}`}
+        >
+          <Icon className="h-5 w-5" />
         </div>
         {trend && (
-          <div className={`flex items-center gap-1 text-sm font-semibold ${
-            trend.isPositive ? 'text-green-400' : 'text-red-400'
-          }`}>
-            <span>{trend.isPositive ? '↑' : '↓'}</span>
+          <div
+            className={`inline-flex items-center gap-2 rounded-full border border-white/80 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] transition-all duration-300 ${
+              trend.isPositive ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'
+            }`}
+          >
+            <span className="text-base leading-none">{trend.isPositive ? '↑' : '↓'}</span>
             <span>{Math.abs(trend.value)}%</span>
           </div>
         )}
       </div>
-      <div>
-        <p className="text-sm font-medium text-gray-400 mb-1">{title}</p>
-        <p className="text-3xl font-bold text-white mb-1">{value}</p>
-        {subtitle && <p className="text-sm text-gray-500">{subtitle}</p>}
+
+      <div className="relative space-y-2">
+        <p className="text-xs font-semibold uppercase tracking-[0.28em] text-rose-400">{title}</p>
+        <p className="text-3xl font-bold text-slate-900 md:text-4xl">{value}</p>
+        {subtitle && <p className="text-sm text-slate-500">{subtitle}</p>}
       </div>
     </div>
   )

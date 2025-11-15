@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Check, X, Loader2, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Check, X, Loader2, ChevronLeft, ChevronRight, Clock } from 'lucide-react'
 import { updateLeadPaymentStatus } from '../../services/adminService'
 
 interface Lead {
@@ -44,58 +44,59 @@ const LeadsTable = ({ leads, onUpdate }: LeadsTableProps) => {
   return (
     <div className="space-y-4">
       <div className="overflow-x-auto">
-        <table className="w-full">
+        <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-gray-700">
-              <th className="text-left py-4 px-4 text-sm font-semibold text-gray-300">WhatsApp</th>
-              <th className="text-left py-4 px-4 text-sm font-semibold text-gray-300">Nome</th>
-              <th className="text-left py-4 px-4 text-sm font-semibold text-gray-300">Data</th>
-              <th className="text-right py-4 px-4 text-sm font-semibold text-gray-300">Valor</th>
-              <th className="text-center py-4 px-4 text-sm font-semibold text-gray-300">Status</th>
-              <th className="text-center py-4 px-4 text-sm font-semibold text-gray-300">Ações</th>
+            <tr className="border-b border-rose-100/70 bg-white text-left text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
+              <th className="py-4 px-4">WhatsApp</th>
+              <th className="py-4 px-4">Nome</th>
+              <th className="py-4 px-4">Data</th>
+              <th className="py-4 px-4 text-right">Valor</th>
+              <th className="py-4 px-4 text-center">Status</th>
+              <th className="py-4 px-4 text-center">Ações</th>
             </tr>
           </thead>
           <tbody>
             {currentLeads.map((lead, index) => (
             <tr 
               key={index} 
-              className="border-b border-gray-700/50 hover:bg-gray-700/30 transition-colors"
+              className="border-b border-rose-100/60 text-slate-600 transition-colors hover:bg-rose-50/50"
             >
               <td className="py-4 px-4">
-                <span className="text-sm text-white font-mono bg-gray-800 px-3 py-1 rounded-lg">
+                <span className="font-mono text-slate-800 bg-slate-100 px-3 py-1 rounded-lg">
                   {lead.whatsapp}
                 </span>
               </td>
-              <td className="py-4 px-4 text-sm text-gray-300">
+              <td className="py-4 px-4">
                 {lead.nome || '-'}
               </td>
-              <td className="py-4 px-4 text-sm text-gray-400">
+              <td className="py-4 px-4 text-slate-500">
                 {new Date(lead.created_at).toLocaleString('pt-BR')}
               </td>
-              <td className="py-4 px-4 text-right text-sm font-semibold text-white">
+              <td className="py-4 px-4 text-right text-sm font-semibold text-slate-900">
                 {lead.payment_amount ? (
-                  `R$ ${lead.payment_amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+                  <span>R$ {lead.payment_amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</span>
                 ) : (
-                  <span className="text-gray-500">-</span>
+                  <span className="text-slate-400">-</span>
                 )}
               </td>
               <td className="py-4 px-4 text-center">
                 {lead.payment_status === 'paid' || lead.payment_confirmed ? (
-                  <span className="inline-flex items-center gap-1 px-3 py-1 bg-green-500/20 text-green-400 rounded-full text-xs font-semibold">
+                  <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-emerald-50 text-emerald-600 font-semibold">
                     <Check className="w-3 h-3" />
                     Pago
                   </span>
                 ) : lead.payment_status === 'pending' ? (
-                  <span className="inline-flex items-center gap-1 px-3 py-1 bg-yellow-500/20 text-yellow-400 rounded-full text-xs font-semibold">
+                  <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-amber-50 text-amber-600 font-semibold">
+                    <Clock className="w-3 h-3" />
                     Pendente
                   </span>
                 ) : lead.payment_status === 'expired' ? (
-                  <span className="inline-flex items-center gap-1 px-3 py-1 bg-gray-500/20 text-gray-400 rounded-full text-xs font-semibold">
+                  <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-slate-100 text-slate-500 font-semibold">
                     <X className="w-3 h-3" />
                     Expirado
                   </span>
                 ) : (
-                  <span className="inline-flex items-center gap-1 px-3 py-1 bg-red-500/20 text-red-400 rounded-full text-xs font-semibold">
+                  <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-rose-100 text-rose-600 font-semibold">
                     <X className="w-3 h-3" />
                     Sem Pagamento
                   </span>
@@ -107,10 +108,10 @@ const LeadsTable = ({ leads, onUpdate }: LeadsTableProps) => {
                   <button
                     onClick={() => handleTogglePayment(lead.payment_id, lead.payment_confirmed || false)}
                     disabled={updating === lead.payment_id}
-                    className={`px-4 py-2 rounded-lg text-xs font-semibold transition-all ${
+                    className={`px-4 py-2 rounded-full text-xs font-semibold transition-all ${
                       lead.payment_confirmed
-                        ? 'bg-red-500/20 text-red-400 hover:bg-red-500/30'
-                        : 'bg-green-500/20 text-green-400 hover:bg-green-500/30'
+                        ? 'bg-rose-100 text-rose-600 hover:bg-rose-200'
+                        : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
                     } disabled:opacity-50 disabled:cursor-not-allowed`}
                   >
                     {updating === lead.payment_id ? (
@@ -134,24 +135,24 @@ const LeadsTable = ({ leads, onUpdate }: LeadsTableProps) => {
     {/* Paginação */}
     {totalPages > 1 && (
       <div className="flex items-center justify-between pt-4">
-        <p className="text-sm text-gray-400">
+        <p className="text-sm text-slate-500">
           Mostrando {startIndex + 1} a {Math.min(endIndex, leads.length)} de {leads.length} leads
         </p>
         <div className="flex items-center gap-2">
           <button
             onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
             disabled={currentPage === 1}
-            className="p-2 rounded-lg bg-gray-700/50 text-gray-300 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-rose-100 bg-white text-slate-600 transition hover:border-rose-300 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <ChevronLeft className="w-5 h-5" />
           </button>
-          <span className="text-sm text-gray-300 px-4">
+          <span className="text-sm font-semibold text-slate-600 px-4">
             Página {currentPage} de {totalPages}
           </span>
           <button
             onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
             disabled={currentPage === totalPages}
-            className="p-2 rounded-lg bg-gray-700/50 text-gray-300 hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            className="flex h-9 w-9 items-center justify-center rounded-full border border-rose-100 bg-white text-slate-600 transition hover:border-rose-300 disabled:opacity-40 disabled:cursor-not-allowed"
           >
             <ChevronRight className="w-5 h-5" />
           </button>
