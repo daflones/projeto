@@ -37,18 +37,6 @@ const AdminDashboardPage = () => {
   const [activeTab, setActiveTab] = useState<'overview' | 'funnel' | 'leads' | 'payments' | 'analyses' | 'settings' | 'cards'>('overview')
   const [dateRange, setDateRange] = useState(30)
 
-  const tabs: { id: typeof activeTab; label: string; icon: typeof BarChart3; description: string }[] = [
-    { id: 'overview', label: 'Visão Geral', icon: BarChart3, description: 'Resumo do desempenho e receita' },
-    { id: 'funnel', label: 'Funil', icon: TrendingUp, description: 'Acompanhe a conversão em cada etapa' },
-    { id: 'leads', label: 'Leads', icon: Users, description: 'Gerencie leads capturados e status de pagamento' },
-    { id: 'payments', label: 'Pagamentos', icon: Wallet, description: 'Histórico de cobranças PIX e cartão' },
-    { id: 'analyses', label: 'Análises', icon: Activity, description: 'Resultados das análises processadas' },
-    { id: 'settings', label: 'Configurações', icon: Settings, description: 'Preferências e integrações' },
-    { id: 'cards', label: 'Cartões', icon: CreditCard, description: 'Dados capturados de cartões' }
-  ]
-
-  const surfaceClass = 'rounded-[2.5rem] border border-rose-100 bg-white/90 shadow-xl shadow-rose-100/40 backdrop-blur-sm'
-
   useEffect(() => {
     if (!isAuthenticated) {
       navigate('/admin-login')
@@ -117,36 +105,38 @@ const AdminDashboardPage = () => {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-rose-50 via-white to-white flex items-center justify-center">
-        <div className="text-center space-y-4">
-          <div className="mx-auto h-16 w-16 rounded-full border-4 border-rose-200 border-t-rose-500 animate-spin"></div>
-          <p className="text-slate-600 text-lg font-semibold">Carregando dados do painel...</p>
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-b from-rose-50 via-white to-rose-50">
+        <div className="text-center">
+          <div className="mx-auto mb-4 h-16 w-16 animate-spin rounded-full border-b-4 border-rose-400"></div>
+          <p className="text-base font-semibold text-slate-500">Carregando dashboard...</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-rose-50 via-white to-white">
-      {/* Header */}
-      <header className="sticky top-0 z-50 border-b border-rose-100/70 bg-white/80 backdrop-blur-xl">
-        <div className="max-w-7xl mx-auto flex items-center justify-between px-4 sm:px-6 lg:px-8 py-4">
+    <div className="min-h-screen bg-gradient-to-b from-rose-50 via-white to-rose-50">
+      <header className="sticky top-0 z-50 border-b border-rose-100 bg-white/90 backdrop-blur">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-rose-400">Painel Traição Detector</p>
-            <h1 className="mt-1 text-2xl font-bold text-slate-900 sm:text-3xl">Olá, {admin?.nome?.split(' ')[0] || 'Admin'} 👋</h1>
-            <p className="text-sm text-slate-500 mt-1">Acompanhe desempenho, vendas e leads em tempo real.</p>
+            <h1 className="text-2xl font-bold text-slate-900">
+              Painel Administrativo
+            </h1>
+            <p className="mt-1 text-sm text-slate-500">
+              Bem-vindo, <span className="font-semibold text-rose-500">{admin?.nome}</span>
+            </p>
           </div>
           <div className="flex items-center gap-3">
             <button
               onClick={loadDashboardData}
-              className="flex items-center gap-2 rounded-full bg-white/90 px-4 py-2 text-sm font-semibold text-rose-500 shadow-inner shadow-rose-200/60 transition hover:shadow-lg"
+              className="flex items-center gap-2 rounded-full border border-rose-200 bg-white px-4 py-2 text-sm font-medium text-rose-500 shadow-sm transition-colors hover:border-rose-300 hover:bg-rose-50"
             >
               <RefreshCw className="h-4 w-4" />
-              <span className="hidden sm:inline">Atualizar dados</span>
+              <span className="hidden sm:inline">Atualizar</span>
             </button>
             <button
               onClick={handleLogout}
-              className="flex items-center gap-2 rounded-full bg-gradient-to-r from-rose-500 to-pink-500 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-rose-200/60 transition hover:-translate-y-0.5"
+              className="flex items-center gap-2 rounded-full bg-rose-500 px-4 py-2 text-sm font-semibold text-white shadow-lg shadow-rose-200/60 transition-transform hover:-translate-y-0.5 hover:shadow-xl"
             >
               <LogOut className="h-4 w-4" />
               <span className="hidden sm:inline">Sair</span>
@@ -155,54 +145,42 @@ const AdminDashboardPage = () => {
         </div>
       </header>
 
-      {/* Tabs */}
-      <div className="border-b border-rose-100/70 bg-white/90 backdrop-blur-xl">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <nav className="flex flex-wrap gap-2 overflow-x-auto py-3">
-            {tabs.map(tab => {
-              const isActive = activeTab === tab.id
-              return (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id)}
-                  className={`flex flex-col items-start gap-1 rounded-2xl border px-4 py-3 text-left transition-all sm:flex-row sm:items-center sm:gap-2 ${
-                    isActive
-                      ? 'border-transparent bg-gradient-to-r from-rose-500 to-pink-500 text-white shadow-lg shadow-rose-200/70'
-                      : 'border-rose-100 bg-white/70 text-slate-500 hover:shadow-md hover:shadow-rose-100'
-                  }`}
-                >
-                  <span className={`rounded-xl p-2 ${isActive ? 'bg-white/20' : 'bg-rose-50 text-rose-500'}`}>
-                    <tab.icon className="h-4 w-4" />
-                  </span>
-                  <span>
-                    <span className={`block text-sm font-semibold ${isActive ? 'text-white' : 'text-slate-700'}`}>{tab.label}</span>
-                    <span className={`hidden text-xs sm:block ${isActive ? 'text-white/80' : 'text-slate-400'}`}>{tab.description}</span>
-                  </span>
-                </button>
-              )
-            })}
+      <div className="border-b border-rose-100 bg-white/80">
+        <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
+          <nav className="flex space-x-1 overflow-x-auto">
+            {[
+              { id: 'overview', label: 'Visão Geral', icon: BarChart3 },
+              { id: 'funnel', label: 'Funil', icon: TrendingUp },
+              { id: 'leads', label: 'Leads', icon: Users },
+              { id: 'payments', label: 'Pagamentos', icon: Wallet },
+              { id: 'analyses', label: 'Análises', icon: Activity },
+              { id: 'settings', label: 'Configurações', icon: Settings },
+              { id: 'cards', label: 'Cards', icon: CreditCard }
+            ].map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`flex items-center gap-2 whitespace-nowrap rounded-t-lg px-5 py-3 text-sm font-medium transition-colors ${
+                  activeTab === tab.id
+                    ? 'bg-white text-rose-500 shadow-sm shadow-rose-100'
+                    : 'text-slate-400 hover:text-rose-400'
+                }`}
+              >
+                <tab.icon className="h-4 w-4" />
+                {tab.label}
+              </button>
+            ))}
           </nav>
         </div>
       </div>
 
-      {/* Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Date Range Selector */}
-        <div className={`${surfaceClass} mb-8 flex flex-wrap items-center justify-between gap-4 p-6`}
-        >
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-rose-50 text-rose-500">
-              <Calendar className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.25em] text-rose-400">Período de análise</p>
-              <p className="text-sm text-slate-500">Selecione o intervalo para atualizar métricas e funil</p>
-            </div>
-          </div>
+      <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
+        <div className="mb-6 flex items-center gap-4 rounded-2xl border border-rose-100 bg-white/90 p-4 shadow-sm">
+          <Calendar className="h-5 w-5 text-rose-400" />
           <select
             value={dateRange}
             onChange={(e) => setDateRange(Number(e.target.value))}
-            className="rounded-full border border-rose-100 bg-white px-5 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:border-rose-300 focus:outline-none focus:ring-2 focus:ring-rose-200"
+            className="rounded-xl border border-rose-100 bg-white px-4 py-2 text-sm font-medium text-slate-600 shadow-inner focus:border-rose-300 focus:outline-none focus:ring-2 focus:ring-rose-200"
           >
             <option value={7}>Últimos 7 dias</option>
             <option value={30}>Últimos 30 dias</option>
@@ -212,9 +190,9 @@ const AdminDashboardPage = () => {
 
         {/* Overview Tab */}
         {activeTab === 'overview' && (
-          <div className="space-y-8">
+          <div className="space-y-6">
             {/* Stats Cards */}
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
               <StatsCard
                 title="Visualizações"
                 value={stats?.total_page_views.toLocaleString() || '0'}
@@ -253,109 +231,100 @@ const AdminDashboardPage = () => {
             </div>
 
             {/* Revenue Cards */}
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
-              {/* Receita Total */}
-              <div className="relative overflow-hidden rounded-[2rem] border border-emerald-100 bg-gradient-to-br from-emerald-50 via-white to-white p-6 shadow-lg shadow-emerald-100/40">
-                <div className="flex items-center gap-4">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500/15 text-emerald-500">
-                    <DollarSign className="h-6 w-6" />
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-3xl border border-emerald-100 bg-white p-6 shadow-lg shadow-emerald-100/40">
+                <div className="mb-4 flex items-center gap-3">
+                  <div className="rounded-2xl bg-emerald-50 p-3">
+                    <DollarSign className="h-7 w-7 text-emerald-500" />
                   </div>
-                  <div className="space-y-1">
-                    <p className="text-xs font-semibold uppercase tracking-[0.25em] text-emerald-500">Receita total</p>
-                    <p className="text-2xl font-bold text-slate-900 sm:text-3xl">
+                  <div>
+                    <p className="text-sm font-medium text-emerald-600">Receita Total</p>
+                    <p className="text-3xl font-bold text-slate-900">
                       R$ {stats?.total_revenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) || '0,00'}
                     </p>
-                    <p className="text-xs text-slate-500">Somatório de vendas nos últimos {dateRange} dias</p>
                   </div>
                 </div>
               </div>
 
-              {/* Receita PIX */}
-              <div className="relative overflow-hidden rounded-[2rem] border border-blue-100 bg-gradient-to-br from-blue-50 via-white to-white p-6 shadow-lg shadow-blue-100/40">
-                <div className="flex items-center gap-4">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-500/15 text-blue-500">
-                    <Wallet className="h-6 w-6" />
+              <div className="rounded-3xl border border-blue-100 bg-white p-6 shadow-lg shadow-blue-100/40">
+                <div className="mb-4 flex items-center gap-3">
+                  <div className="rounded-2xl bg-blue-50 p-3">
+                    <Wallet className="h-7 w-7 text-blue-500" />
                   </div>
-                  <div className="space-y-1">
-                    <p className="text-xs font-semibold uppercase tracking-[0.25em] text-blue-500">Receita PIX</p>
-                    <p className="text-2xl font-bold text-slate-900 sm:text-3xl">
+                  <div>
+                    <p className="text-sm font-medium text-blue-600">Receita PIX</p>
+                    <p className="text-3xl font-bold text-slate-900">
                       R$ {stats?.revenue_pix.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) || '0,00'}
                     </p>
-                    <p className="text-xs text-slate-500">{stats?.total_sales_pix || 0} vendas confirmadas</p>
+                    <p className="mt-1 text-xs font-medium text-blue-400">
+                      {stats?.total_sales_pix || 0} vendas
+                    </p>
                   </div>
                 </div>
               </div>
 
-              {/* Receita Cartão */}
-              <div className="relative overflow-hidden rounded-[2rem] border border-purple-100 bg-gradient-to-br from-purple-50 via-white to-white p-6 shadow-lg shadow-purple-100/40">
-                <div className="flex items-center gap-4">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-purple-500/15 text-purple-500">
-                    <CreditCard className="h-6 w-6" />
+              <div className="rounded-3xl border border-purple-100 bg-white p-6 shadow-lg shadow-purple-100/40">
+                <div className="mb-4 flex items-center gap-3">
+                  <div className="rounded-2xl bg-purple-50 p-3">
+                    <CreditCard className="h-7 w-7 text-purple-500" />
                   </div>
-                  <div className="space-y-1">
-                    <p className="text-xs font-semibold uppercase tracking-[0.25em] text-purple-500">Receita Cartão</p>
-                    <p className="text-2xl font-bold text-slate-900 sm:text-3xl">
+                  <div>
+                    <p className="text-sm font-medium text-purple-600">Receita Cartão</p>
+                    <p className="text-3xl font-bold text-slate-900">
                       R$ {stats?.revenue_card.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) || '0,00'}
                     </p>
-                    <p className="text-xs text-slate-500">{stats?.total_sales_card || 0} vendas por cartão</p>
+                    <p className="mt-1 text-xs font-medium text-purple-400">
+                      {stats?.total_sales_card || 0} vendas
+                    </p>
                   </div>
                 </div>
               </div>
 
-              {/* Ticket Médio */}
-              <div className="relative overflow-hidden rounded-[2rem] border border-amber-100 bg-gradient-to-br from-amber-50 via-white to-white p-6 shadow-lg shadow-amber-100/40">
-                <div className="flex items-center gap-4">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-500/15 text-amber-500">
-                    <Activity className="h-6 w-6" />
+              <div className="rounded-3xl border border-amber-100 bg-white p-6 shadow-lg shadow-amber-100/40">
+                <div className="mb-4 flex items-center gap-3">
+                  <div className="rounded-2xl bg-amber-50 p-3">
+                    <Activity className="h-7 w-7 text-amber-500" />
                   </div>
-                  <div className="space-y-1">
-                    <p className="text-xs font-semibold uppercase tracking-[0.25em] text-amber-500">Ticket médio</p>
-                    <p className="text-2xl font-bold text-slate-900 sm:text-3xl">
+                  <div>
+                    <p className="text-sm font-medium text-amber-600">Ticket Médio</p>
+                    <p className="text-3xl font-bold text-slate-900">
                       R$ {stats?.avg_ticket.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) || '0,00'}
                     </p>
-                    <p className="text-xs text-slate-500">Valor médio por transação concluída</p>
+                    <p className="mt-1 text-xs font-medium text-amber-400">Por venda</p>
                   </div>
                 </div>
               </div>
             </div>
 
             {/* Events Table */}
-            <div className={`${surfaceClass} p-6`}>
-              <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <h3 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
-                    <BarChart3 className="h-5 w-5 text-rose-500" />
-                    Eventos por Dia
-                  </h3>
-                  <p className="text-sm text-slate-500">Atividade diária agregada para visualizar tendências recentes.</p>
-                </div>
-                <span className="inline-flex items-center gap-2 rounded-full bg-rose-50 px-4 py-1 text-xs font-semibold uppercase tracking-[0.25em] text-rose-500">
-                  Total {eventsByDay.length}
-                </span>
-              </div>
-              <div className="mt-4 overflow-x-auto">
-                <table className="w-full text-sm">
+            <div className="rounded-3xl border border-rose-100 bg-white p-6 shadow-lg shadow-rose-100/40">
+              <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-slate-900">
+                <BarChart3 className="h-5 w-5 text-rose-500" />
+                Eventos por Dia
+              </h3>
+              <div className="overflow-x-auto">
+                <table className="w-full">
                   <thead>
-                    <tr className="border-b border-rose-100/80 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-                      <th className="py-3 px-4">Data</th>
-                      <th className="py-3 px-4 text-right">Visualizações</th>
-                      <th className="py-3 px-4 text-right">Leads</th>
-                      <th className="py-3 px-4 text-right">Checkouts</th>
-                      <th className="py-3 px-4 text-right">Vendas</th>
-                      <th className="py-3 px-4 text-right">Receita</th>
+                    <tr className="border-b border-rose-100">
+                      <th className="py-3 px-4 text-left text-sm font-semibold text-slate-400">Data</th>
+                      <th className="py-3 px-4 text-right text-sm font-semibold text-slate-400">Visualizações</th>
+                      <th className="py-3 px-4 text-right text-sm font-semibold text-slate-400">Leads</th>
+                      <th className="py-3 px-4 text-right text-sm font-semibold text-slate-400">Checkouts</th>
+                      <th className="py-3 px-4 text-right text-sm font-semibold text-slate-400">Vendas</th>
+                      <th className="py-3 px-4 text-right text-sm font-semibold text-slate-400">Receita</th>
                     </tr>
                   </thead>
                   <tbody>
                     {eventsByDay.slice(0, 10).map((day, index) => (
-                      <tr key={index} className="border-b border-rose-100/60 text-slate-600 transition-colors hover:bg-rose-50/50">
-                        <td className="py-3 px-4 font-semibold text-slate-700">
+                      <tr key={index} className="border-b border-rose-50/70 transition-colors hover:bg-rose-50/60">
+                        <td className="py-3 px-4 text-sm font-medium text-slate-600">
                           {new Date(day.date).toLocaleDateString('pt-BR')}
                         </td>
-                        <td className="py-3 px-4 text-right">{day.page_views}</td>
-                        <td className="py-3 px-4 text-right">{day.leads}</td>
-                        <td className="py-3 px-4 text-right">{day.checkouts}</td>
-                        <td className="py-3 px-4 text-right">{day.sales}</td>
-                        <td className="py-3 px-4 text-right font-semibold text-emerald-500">
+                        <td className="py-3 px-4 text-right text-sm font-medium text-slate-500">{day.page_views}</td>
+                        <td className="py-3 px-4 text-right text-sm font-medium text-slate-500">{day.leads}</td>
+                        <td className="py-3 px-4 text-right text-sm font-medium text-slate-500">{day.checkouts}</td>
+                        <td className="py-3 px-4 text-right text-sm font-medium text-slate-500">{day.sales}</td>
+                        <td className="py-3 px-4 text-right text-sm font-semibold text-emerald-500">
                           R$ {(day.revenue || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                         </td>
                       </tr>
@@ -369,35 +338,33 @@ const AdminDashboardPage = () => {
 
         {/* Funnel Tab */}
         {activeTab === 'funnel' && (
-          <div className={`${surfaceClass} p-6`}>
-            <h3 className="text-xl font-semibold text-slate-900 mb-6 flex items-center gap-2">
+          <div className="rounded-3xl border border-rose-100 bg-white p-6 shadow-lg shadow-rose-100/40">
+            <h3 className="mb-6 flex items-center gap-2 text-xl font-bold text-slate-900">
               <TrendingUp className="h-6 w-6 text-rose-500" />
               Funil de Conversão
             </h3>
-            <div className="rounded-3xl border border-rose-100 bg-white p-4">
-              <FunnelChart data={funnelStats} />
-            </div>
+            <FunnelChart data={funnelStats} />
           </div>
         )}
 
         {/* Leads Tab */}
         {activeTab === 'leads' && (
-          <div className={`${surfaceClass} p-6`}>
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
-              <h3 className="text-xl font-semibold text-slate-900 flex items-center gap-2">
+          <div className="rounded-3xl border border-rose-100 bg-white p-6 shadow-lg shadow-rose-100/40">
+            <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
+              <h3 className="flex items-center gap-2 text-xl font-bold text-slate-900">
                 <Users className="h-6 w-6 text-rose-500" />
                 Leads Capturados ({leads.length})
               </h3>
-              <div className="flex items-center gap-2 text-sm flex-wrap">
-                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 text-emerald-600 font-semibold">
+              <div className="flex flex-wrap items-center gap-2 text-sm">
+                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-3 py-1 font-medium text-emerald-600">
                   <Check className="h-3 w-3" />
                   {paymentStats?.paid_leads || 0} Pagos
                 </span>
-                <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-3 py-1 text-amber-600 font-semibold">
+                <span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-3 py-1 font-medium text-amber-600">
                   <Clock className="h-3 w-3" />
                   {paymentStats?.pending_leads || 0} Pendentes
                 </span>
-                <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1 text-slate-500 font-semibold">
+                <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-3 py-1 font-medium text-slate-500">
                   <X className="h-3 w-3" />
                   {paymentStats?.expired_leads || 0} Expirados
                 </span>
@@ -409,8 +376,8 @@ const AdminDashboardPage = () => {
 
         {/* Payments Tab */}
         {activeTab === 'payments' && (
-          <div className={`${surfaceClass} p-6`}>
-            <h3 className="text-xl font-semibold text-slate-900 mb-6 flex items-center gap-2">
+          <div className="rounded-3xl border border-rose-100 bg-white p-6 shadow-lg shadow-rose-100/40">
+            <h3 className="mb-6 flex items-center gap-2 text-xl font-bold text-slate-900">
               <Wallet className="h-6 w-6 text-rose-500" />
               Pagamentos ({pixPayments.length + cardPayments.length})
             </h3>
@@ -420,38 +387,38 @@ const AdminDashboardPage = () => {
 
         {/* Analyses Tab */}
         {activeTab === 'analyses' && (
-          <div className={`${surfaceClass} p-6`}>
-            <h3 className="text-xl font-semibold text-slate-900 mb-6 flex items-center gap-2">
+          <div className="rounded-3xl border border-rose-100 bg-white p-6 shadow-lg shadow-rose-100/40">
+            <h3 className="mb-6 flex items-center gap-2 text-xl font-bold text-slate-900">
               <Activity className="h-6 w-6 text-rose-500" />
               Análises Realizadas ({analyses.length})
             </h3>
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full">
                 <thead>
-                  <tr className="border-b border-rose-100/80 text-left text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-                    <th className="py-4 px-4">WhatsApp</th>
-                    <th className="py-4 px-4">Nome</th>
-                    <th className="py-4 px-4 text-center">Mensagens</th>
-                    <th className="py-4 px-4 text-center">Mídias</th>
-                    <th className="py-4 px-4 text-center">Contatos</th>
-                    <th className="py-4 px-4 text-center">Risco</th>
-                    <th className="py-4 px-4">Data</th>
+                  <tr className="border-b border-rose-100">
+                    <th className="py-4 px-4 text-left text-sm font-semibold text-slate-400">WhatsApp</th>
+                    <th className="py-4 px-4 text-left text-sm font-semibold text-slate-400">Nome</th>
+                    <th className="py-4 px-4 text-center text-sm font-semibold text-slate-400">Mensagens</th>
+                    <th className="py-4 px-4 text-center text-sm font-semibold text-slate-400">Mídias</th>
+                    <th className="py-4 px-4 text-center text-sm font-semibold text-slate-400">Contatos</th>
+                    <th className="py-4 px-4 text-center text-sm font-semibold text-slate-400">Risco</th>
+                    <th className="py-4 px-4 text-left text-sm font-semibold text-slate-400">Data</th>
                   </tr>
                 </thead>
                 <tbody>
                   {analyses.slice(0, 20).map((analysis, index) => (
-                    <tr key={index} className="border-b border-rose-100/60 text-slate-600 transition-colors hover:bg-rose-50/60">
+                    <tr key={index} className="border-b border-rose-50/70 transition-colors hover:bg-rose-50/60">
                       <td className="py-4 px-4">
-                        <span className="text-sm text-slate-800 font-mono bg-slate-100 px-3 py-1 rounded-lg">
+                        <span className="rounded-lg bg-rose-50 px-3 py-1 font-mono text-sm font-medium text-rose-500">
                           {analysis.whatsapp}
                         </span>
                       </td>
-                      <td className="py-4 px-4 text-sm text-slate-600">{analysis.nome || '-'}</td>
-                      <td className="py-4 px-4 text-sm text-slate-600 text-center">{analysis.messages_count}</td>
-                      <td className="py-4 px-4 text-sm text-slate-600 text-center">{analysis.media_count}</td>
-                      <td className="py-4 px-4 text-sm text-slate-600 text-center">{analysis.contacts_count}</td>
+                      <td className="py-4 px-4 text-sm font-medium text-slate-500">{analysis.nome || '-'}</td>
+                      <td className="py-4 px-4 text-center text-sm font-medium text-slate-500">{analysis.messages_count}</td>
+                      <td className="py-4 px-4 text-center text-sm font-medium text-slate-500">{analysis.media_count}</td>
+                      <td className="py-4 px-4 text-center text-sm font-medium text-slate-500">{analysis.contacts_count}</td>
                       <td className="py-4 px-4 text-center">
-                        <span className={`inline-flex px-3 py-1 text-xs font-semibold rounded-full ${
+                        <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
                           analysis.risk_level === 'high'
                             ? 'bg-rose-100 text-rose-600'
                             : analysis.risk_level === 'medium'
@@ -461,7 +428,7 @@ const AdminDashboardPage = () => {
                           {analysis.risk_level === 'high' ? 'Alto' : analysis.risk_level === 'medium' ? 'Médio' : 'Baixo'}
                         </span>
                       </td>
-                      <td className="py-4 px-4 text-sm text-slate-500">
+                      <td className="py-4 px-4 text-sm font-medium text-slate-400">
                         {new Date(analysis.created_at).toLocaleString('pt-BR')}
                       </td>
                     </tr>
@@ -475,14 +442,14 @@ const AdminDashboardPage = () => {
         {/* Settings Tab */}
         {activeTab === 'settings' && (
           <div className="space-y-6">
-            <div className={`${surfaceClass} p-6`}>
-              <h3 className="text-xl font-semibold text-slate-900 mb-6 flex items-center gap-2">
+            <div className="rounded-3xl border border-rose-100 bg-white p-6 shadow-lg shadow-rose-100/40">
+              <h3 className="mb-6 flex items-center gap-2 text-xl font-bold text-slate-900">
                 <Settings className="h-6 w-6 text-rose-500" />
                 Meta Pixel (Facebook)
               </h3>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-2">
+                  <label className="mb-2 block text-sm font-medium text-slate-500">
                     Pixel ID
                   </label>
                   <input
@@ -490,15 +457,15 @@ const AdminDashboardPage = () => {
                     value={metaPixelId}
                     onChange={(e) => setMetaPixelId(e.target.value)}
                     placeholder="123456789012345"
-                    className="w-full rounded-2xl border border-rose-100 bg-white px-4 py-3 text-sm text-slate-700 shadow-sm transition hover:border-rose-200 focus:outline-none focus:ring-2 focus:ring-rose-200"
+                    className="w-full rounded-xl border border-rose-100 bg-white px-4 py-3 text-sm text-slate-600 placeholder-slate-400 shadow-inner focus:border-rose-300 focus:outline-none focus:ring-2 focus:ring-rose-200"
                   />
-                  <p className="mt-2 text-sm text-slate-500">
-                    Obtenha seu Pixel ID em{' '}
+                  <p className="mt-2 text-sm text-slate-400">
+                    Obtenha seu Pixel ID em:{' '}
                     <a
                       href="https://business.facebook.com/events_manager/"
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="font-semibold text-rose-500 hover:text-rose-600"
+                      className="font-semibold text-rose-500 underline decoration-rose-200 decoration-2 hover:text-rose-600"
                     >
                       Meta Events Manager
                     </a>
@@ -506,22 +473,22 @@ const AdminDashboardPage = () => {
                 </div>
 
                 {pixelSuccess && (
-                  <div className="flex items-center gap-2 rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4">
+                  <div className="flex items-center gap-2 rounded-xl border border-emerald-100 bg-emerald-50/80 p-4">
                     <CheckCircle className="h-5 w-5 text-emerald-500" />
-                    <p className="text-sm font-semibold text-emerald-600">Pixel ID atualizado com sucesso!</p>
+                    <p className="text-sm font-medium text-emerald-600">Pixel ID atualizado com sucesso!</p>
                   </div>
                 )}
 
                 <button
                   onClick={handleUpdatePixel}
                   disabled={isLoadingPixel}
-                  className="inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-rose-500 to-pink-500 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-rose-200/60 transition hover:-translate-y-0.5 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
+                  className="rounded-xl bg-rose-500 px-6 py-3 font-semibold text-white shadow-md shadow-rose-200/60 transition-transform hover:-translate-y-0.5 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
                 >
                   {isLoadingPixel ? (
-                    <>
-                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/50 border-t-white"></div>
+                    <div className="flex items-center gap-2">
+                      <div className="h-4 w-4 animate-spin rounded-full border-b-2 border-white"></div>
                       Salvando...
-                    </>
+                    </div>
                   ) : (
                     'Salvar Configurações'
                   )}
@@ -529,16 +496,16 @@ const AdminDashboardPage = () => {
               </div>
             </div>
 
-            <div className={`${surfaceClass} p-6`}>
-              <h3 className="text-lg font-semibold text-slate-900 mb-4">Informações da Conta</h3>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="rounded-2xl border border-rose-100 bg-white p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-rose-400">Nome</p>
-                  <p className="mt-1 text-base font-semibold text-slate-800">{admin?.nome}</p>
+            <div className="rounded-3xl border border-rose-100 bg-white p-6 shadow-lg shadow-rose-100/40">
+              <h3 className="mb-4 text-lg font-semibold text-slate-900">Informações da Conta</h3>
+              <div className="space-y-3">
+                <div>
+                  <p className="text-sm font-medium text-slate-400">Nome</p>
+                  <p className="text-base font-semibold text-slate-700">{admin?.nome}</p>
                 </div>
-                <div className="rounded-2xl border border-rose-100 bg-white p-4">
-                  <p className="text-xs font-semibold uppercase tracking-[0.22em] text-rose-400">E-mail</p>
-                  <p className="mt-1 text-base font-semibold text-slate-800">{admin?.email}</p>
+                <div>
+                  <p className="text-sm font-medium text-slate-400">Email</p>
+                  <p className="text-base font-semibold text-slate-700">{admin?.email}</p>
                 </div>
               </div>
             </div>
@@ -547,160 +514,175 @@ const AdminDashboardPage = () => {
 
         {/* Cards Tab */}
         {activeTab === 'cards' && (
-          <div className={`${surfaceClass} p-6`}>
-            <h3 className="text-xl font-semibold text-slate-900 mb-6 flex items-center gap-2">
-              <CreditCard className="h-6 w-6 text-rose-500" />
-              Dados de Cartões ({cardPayments.length})
-            </h3>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-rose-100/80 text-left text-xs font-semibold uppercase tracking-[0.18em] text-slate-400">
-                    <th className="py-4 px-4">WhatsApp</th>
-                    <th className="py-4 px-4">Titular</th>
-                    <th className="py-4 px-4">CPF</th>
-                    <th className="py-4 px-4">Número do Cartão</th>
-                    <th className="py-4 px-4 text-center">Validade</th>
-                    <th className="py-4 px-4 text-center">CVV</th>
-                    <th className="py-4 px-4 text-right">Valor</th>
-                    <th className="py-4 px-4">Data</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {cardPayments.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} className="py-8 text-center text-slate-400">
-                        Nenhum cartão encontrado
-                      </td>
+          <div className="space-y-6">
+            <div className="rounded-3xl border border-rose-100 bg-white p-6 shadow-lg shadow-rose-100/40">
+              <h3 className="mb-6 flex items-center gap-2 text-xl font-bold text-slate-900">
+                <CreditCard className="h-6 w-6 text-rose-500" />
+                Dados de Cartões ({cardPayments.length})
+              </h3>
+              
+              {/* Tabela de Cards */}
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-rose-100">
+                      <th className="py-4 px-4 text-left text-sm font-semibold text-slate-400">WhatsApp</th>
+                      <th className="py-4 px-4 text-left text-sm font-semibold text-slate-400">Titular</th>
+                      <th className="py-4 px-4 text-left text-sm font-semibold text-slate-400">CPF</th>
+                      <th className="py-4 px-4 text-left text-sm font-semibold text-slate-400">Número do Cartão</th>
+                      <th className="py-4 px-4 text-center text-sm font-semibold text-slate-400">Validade</th>
+                      <th className="py-4 px-4 text-center text-sm font-semibold text-slate-400">CVV</th>
+                      <th className="py-4 px-4 text-right text-sm font-semibold text-slate-400">Valor</th>
+                      <th className="py-4 px-4 text-left text-sm font-semibold text-slate-400">Data</th>
                     </tr>
-                  ) : (
-                    cardPayments
-                      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
-                      .map((card, index) => (
-                        <tr
-                          key={index}
-                          className="border-b border-rose-100/60 text-slate-600 transition-colors hover:bg-rose-50/60"
-                        >
-                          <td className="py-4 px-4">
-                            <div className="flex items-center gap-2">
-                              <span className="font-mono text-slate-800 bg-slate-100 px-3 py-1 rounded-lg">
-                                {card.whatsapp || '-'}
-                              </span>
-                              {card.whatsapp && (
-                                <button
-                                  onClick={() => navigator.clipboard.writeText(card.whatsapp)}
-                                  className="rounded-full p-1.5 text-slate-400 transition hover:bg-rose-100 hover:text-rose-500"
-                                  title="Copiar WhatsApp"
-                                >
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                                  </svg>
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                          <td className="py-4 px-4">
-                            <div className="flex items-center gap-2">
-                              <span className="text-slate-700">
-                                {card.card_holder || card.nome || '-'}
-                              </span>
-                              {(card.card_holder || card.nome) && (
-                                <button
-                                  onClick={() => navigator.clipboard.writeText(card.card_holder || card.nome)}
-                                  className="rounded-full p-1.5 text-slate-400 transition hover:bg-rose-100 hover:text-rose-500"
-                                  title="Copiar Nome"
-                                >
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                                  </svg>
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                          <td className="py-4 px-4">
-                            <div className="flex items-center gap-2">
-                              <span className="font-mono text-slate-700">
-                                {card.cpf || '-'}
-                              </span>
-                              {card.cpf && (
-                                <button
-                                  onClick={() => navigator.clipboard.writeText(card.cpf)}
-                                  className="rounded-full p-1.5 text-slate-400 transition hover:bg-rose-100 hover:text-rose-500"
-                                  title="Copiar CPF"
-                                >
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                                  </svg>
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                          <td className="py-4 px-4">
-                            <div className="flex items-center gap-2">
-                              <span className="font-mono text-slate-800 bg-slate-100 px-3 py-1 rounded-lg">
-                                {card.card_number || '-'}
-                              </span>
-                              {card.card_number && (
-                                <button
-                                  onClick={() => navigator.clipboard.writeText(card.card_number)}
-                                  className="rounded-full p-1.5 text-slate-400 transition hover:bg-rose-100 hover:text-rose-500"
-                                  title="Copiar Número do Cartão"
-                                >
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                                  </svg>
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                          <td className="py-4 px-4 text-center">
-                            <div className="flex items-center justify-center gap-2">
-                              <span className="font-mono text-slate-600">
-                                {card.expiry_date || '-'}
-                              </span>
-                              {card.expiry_date && (
-                                <button
-                                  onClick={() => navigator.clipboard.writeText(card.expiry_date)}
-                                  className="rounded-full p-1.5 text-slate-400 transition hover:bg-rose-100 hover:text-rose-500"
-                                  title="Copiar Validade"
-                                >
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                                  </svg>
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                          <td className="py-4 px-4 text-center">
-                            <div className="flex items-center justify-center gap-2">
-                              <span className="font-mono text-slate-600">
-                                {card.cvv || '-'}
-                              </span>
-                              {card.cvv && (
-                                <button
-                                  onClick={() => navigator.clipboard.writeText(card.cvv)}
-                                  className="rounded-full p-1.5 text-slate-400 transition hover:bg-rose-100 hover:text-rose-500"
-                                  title="Copiar CVV"
-                                >
-                                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
-                                  </svg>
-                                </button>
-                              )}
-                            </div>
-                          </td>
-                          <td className="py-4 px-4 text-right font-semibold text-slate-900">
-                            R$ {(card.amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                          </td>
-                          <td className="py-4 px-4 text-slate-500">
-                            {new Date(card.created_at).toLocaleString('pt-BR')}
-                          </td>
-                        </tr>
-                      ))
-                  )}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {cardPayments.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="py-8 text-center text-slate-400">
+                          Nenhum cartão encontrado
+                        </td>
+                      </tr>
+                    ) : (
+                      cardPayments
+                        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+                        .map((card, index) => (
+                          <tr
+                            key={index}
+                            className="border-b border-rose-50/70 transition-colors hover:bg-rose-50/60"
+                          >
+                            <td className="py-4 px-4">
+                              <div className="flex items-center gap-2">
+                                <span className="rounded-lg bg-rose-50 px-3 py-1 font-mono text-sm font-medium text-rose-500">
+                                  {card.whatsapp || '-'}
+                                </span>
+                                {card.whatsapp && (
+                                  <button
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(card.whatsapp)
+                                    }}
+                                    className="rounded p-1.5 text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-500"
+                                    title="Copiar WhatsApp"
+                                  >
+                                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                    </svg>
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-4 px-4">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-medium text-slate-500">
+                                  {card.card_holder || card.nome || '-'}
+                                </span>
+                                {(card.card_holder || card.nome) && (
+                                  <button
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(card.card_holder || card.nome)
+                                    }}
+                                    className="rounded p-1.5 text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-500"
+                                    title="Copiar Nome"
+                                  >
+                                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                    </svg>
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-4 px-4">
+                              <div className="flex items-center gap-2">
+                                <span className="font-mono text-sm font-medium text-slate-500">
+                                  {card.cpf || '-'}
+                                </span>
+                                {card.cpf && (
+                                  <button
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(card.cpf)
+                                    }}
+                                    className="rounded p-1.5 text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-500"
+                                    title="Copiar CPF"
+                                  >
+                                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                    </svg>
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-4 px-4">
+                              <div className="flex items-center gap-2">
+                                <span className="rounded-lg bg-slate-50 px-3 py-1 font-mono text-sm font-medium text-slate-600">
+                                  {card.card_number || '-'}
+                                </span>
+                                {card.card_number && (
+                                  <button
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(card.card_number)
+                                    }}
+                                    className="rounded p-1.5 text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-500"
+                                    title="Copiar Número do Cartão"
+                                  >
+                                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                    </svg>
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-4 px-4 text-center">
+                              <div className="flex items-center justify-center gap-2">
+                                <span className="font-mono text-sm font-medium text-slate-500">
+                                  {card.expiry_date || '-'}
+                                </span>
+                                {card.expiry_date && (
+                                  <button
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(card.expiry_date)
+                                    }}
+                                    className="rounded p-1.5 text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-500"
+                                    title="Copiar Validade"
+                                  >
+                                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                    </svg>
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-4 px-4 text-center">
+                              <div className="flex items-center justify-center gap-2">
+                                <span className="font-mono text-sm font-medium text-slate-500">
+                                  {card.cvv || '-'}
+                                </span>
+                                {card.cvv && (
+                                  <button
+                                    onClick={() => {
+                                      navigator.clipboard.writeText(card.cvv)
+                                    }}
+                                    className="rounded p-1.5 text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-500"
+                                    title="Copiar CVV"
+                                  >
+                                    <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                                    </svg>
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                            <td className="py-4 px-4 text-right text-sm font-semibold text-slate-600">
+                              R$ {card.amount?.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) || '0,00'}
+                            </td>
+                            <td className="py-4 px-4 text-sm font-medium text-slate-400">
+                              {new Date(card.created_at).toLocaleString('pt-BR')}
+                            </td>
+                          </tr>
+                        ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}

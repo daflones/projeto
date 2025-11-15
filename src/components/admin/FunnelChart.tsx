@@ -23,13 +23,13 @@ const FunnelChart = ({ data }: FunnelChartProps) => {
   }
 
   const colors = [
-    'from-blue-500 to-blue-600',
-    'from-cyan-500 to-cyan-600',
-    'from-green-500 to-green-600',
-    'from-yellow-500 to-yellow-600',
-    'from-orange-500 to-orange-600',
-    'from-red-500 to-red-600',
-    'from-pink-500 to-pink-600'
+    'from-blue-300 to-blue-400',
+    'from-cyan-300 to-cyan-400',
+    'from-emerald-300 to-emerald-400',
+    'from-amber-300 to-amber-400',
+    'from-orange-300 to-orange-400',
+    'from-rose-300 to-rose-400',
+    'from-pink-300 to-pink-400'
   ]
 
   return (
@@ -39,31 +39,31 @@ const FunnelChart = ({ data }: FunnelChartProps) => {
 
         return (
           <div key={index} className="group">
-            <div className="flex items-center justify-between mb-2">
+            <div className="mb-2 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <span className="flex items-center justify-center w-8 h-8 rounded-full bg-gray-700 text-white text-sm font-bold">
+                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-rose-50 text-sm font-bold text-rose-500">
                   {index + 1}
                 </span>
-                <span className="text-sm font-semibold text-white">
+                <span className="text-sm font-semibold text-slate-600">
                   {stepNames[step.step_name] || step.step_name}
                 </span>
               </div>
               <div className="flex items-center gap-4">
-                <span className="text-sm text-gray-400">
+                <span className="text-sm font-medium text-slate-400">
                   {step.total_users.toLocaleString()} usuários
                 </span>
               </div>
             </div>
-            <div className="relative w-full bg-gray-800 rounded-full h-12 overflow-hidden border border-gray-700">
+            <div className="relative h-12 w-full overflow-hidden rounded-full border border-rose-100 bg-rose-50/60">
               <div
-                className={`h-full bg-gradient-to-r ${colors[index]} flex items-center justify-between px-6 transition-all duration-700 ease-out group-hover:opacity-90`}
+                className={`flex h-full items-center justify-between bg-gradient-to-r ${colors[index]} px-6 text-white transition-all duration-700 ease-out group-hover:opacity-95`}
                 style={{ width: `${widthPercentage}%` }}
               >
-                <span className="text-sm font-bold text-white">
+                <span className="text-sm font-bold">
                   {step.conversion_rate.toFixed(1)}%
                 </span>
                 {widthPercentage > 30 && (
-                  <span className="text-xs text-white/80">
+                  <span className="text-xs font-medium text-white/90">
                     {step.total_users.toLocaleString()}
                   </span>
                 )}

