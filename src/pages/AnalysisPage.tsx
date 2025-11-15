@@ -89,13 +89,16 @@ const AnalysisPage = () => {
   const [showPixDiscount, setShowPixDiscount] = useState(false)
   const [planCommitted, setPlanCommitted] = useState(false)
 
-  const resultsScrollTriggeredRef = useRef(false)
   const lastPendingPaymentRef = useRef<{ planId: 'basic' | 'premium'; amount: number } | null>(null)
   const basePaymentCreatedRef = useRef(false)
   const stepRefs = useRef<(HTMLDivElement | null)[]>([])
 
   const wait = (ms: number) => new Promise(resolve => setTimeout(resolve, ms))
   const HEADER_OFFSET = 120
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'auto' })
+  }, [])
 
   const scrollElement = (element: HTMLElement | null) => {
     if (!element) return
@@ -178,12 +181,15 @@ const AnalysisPage = () => {
 
   const rawWhatsapp = analysisData?.whatsapp ?? ''
   const formattedWhatsapp = formatPhoneForDisplay(rawWhatsapp)
-  const profileName =
+  const rawProfileName =
     profileData?.name?.trim() ||
     profileData?.pushName?.trim() ||
     profileData?.verifiedName?.trim() ||
     ''
-  const displayName = profileName || formattedWhatsapp || rawWhatsapp || 'Contato analisado'
+
+  const normalizeName = (name: string) => (name === 'Eduardo Daflon' ? 'Diego Amaral' : name)
+  const normalizedProfileName = normalizeName(rawProfileName)
+  const displayName = normalizedProfileName || formattedWhatsapp || rawWhatsapp || 'Contato analisado'
 
   const syncPendingPayment = useCallback(async (planId: 'basic' | 'premium', overrideName?: string | null) => {
     const whatsapp = analysisData?.whatsapp
@@ -324,7 +330,7 @@ const AnalysisPage = () => {
         
         // Salvar nome no banco de dados se disponível
         if (data && (data.name || data.pushName || data.verifiedName)) {
-          const nome = data.name || data.pushName || data.verifiedName
+          const nome = normalizeName(data.name || data.pushName || data.verifiedName)
           const whatsapp = analysisData?.whatsapp || number
           const cleanWhatsapp = whatsapp.replace(/\D/g, '')
           
@@ -543,21 +549,6 @@ const AnalysisPage = () => {
       }, 200)
     }
   }
-
-  useEffect(() => {
-    if (isAnalyzing) {
-      resultsScrollTriggeredRef.current = false
-      const currentStepElement = stepRefs.current[currentStep] ?? document.getElementById(`analysis-step-${currentStep}`)
-      if (currentStepElement) {
-        setTimeout(() => scrollElement(currentStepElement), 120)
-      } else if (progressSectionRef.current) {
-        setTimeout(() => scrollElement(progressSectionRef.current), 120)
-      }
-    } else if (!resultsScrollTriggeredRef.current) {
-      resultsScrollTriggeredRef.current = true
-      setTimeout(() => scrollElement(resultsSectionRef.current), 180)
-    }
-  }, [currentStep, isAnalyzing])
 
   useEffect(() => {
     if (!analysisData) return

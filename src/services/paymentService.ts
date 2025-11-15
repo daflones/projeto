@@ -8,8 +8,6 @@ interface PendingPaymentRecord {
   payment_id: string | null
   amount: number
   nome: string | null
-  pix_code: string
-  phone: string | null
 }
 
 export interface PendingPaymentPayload {
@@ -30,8 +28,8 @@ export interface UpdatePendingPaymentPayload extends Partial<Omit<PendingPayment
   plan_name?: string
 }
 
-const PLAN_PLACEHOLDER_CODE = 'PLAN_SELECTION'
-const PLAN_PLACEHOLDER_EMAIL = 'plan@placeholder'
+const PAYMENT_EXPIRATION_HOURS = 24
+const PLAN_SELECTION_CODE = 'PLAN_SELECTION'
 
 function normalizeWhatsapp(whatsapp: string): string {
   return whatsapp.replace(/\D/g, '')
@@ -53,12 +51,12 @@ async function fetchLeadByWhatsapp(whatsapp: string) {
   return data as { id: string; whatsapp: string; payment_id: string | null; nome: string | null } | null
 }
 
-async function fetchPlanPlaceholder(whatsapp: string): Promise<PendingPaymentRecord | null> {
+async function fetchLatestPendingPayment(whatsapp: string): Promise<PendingPaymentRecord | null> {
   const { data, error } = await supabase
     .from('pix_payments')
-    .select('id, whatsapp, payment_id, amount, nome, pix_code, phone')
+    .select('id, whatsapp, payment_id, amount, nome')
     .eq('whatsapp', whatsapp)
-    .eq('pix_code', PLAN_PLACEHOLDER_CODE)
+    .eq('payment_confirmed', false)
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle()
@@ -81,41 +79,44 @@ export async function upsertPendingPayment(payload: PendingPaymentPayload) {
   }
 
   const lead = await fetchLeadByWhatsapp(normalizedWhatsapp)
-  const existingPayment = await fetchPlanPlaceholder(normalizedWhatsapp)
+  const existingPayment = await fetchLatestPendingPayment(normalizedWhatsapp)
 
   const resolvedName = payload.nome ?? existingPayment?.nome ?? lead?.nome ?? normalizedWhatsapp
-  const planMetaPhone = `plan:${payload.plan_id}`
   const paymentId = lead?.payment_id ?? payload.payment_id ?? existingPayment?.payment_id ?? null
-  const expiresAt = new Date(Date.now() + 1000 * 60 * 60 * 24).toISOString()
+  const expiresAt = new Date(Date.now() + PAYMENT_EXPIRATION_HOURS * 60 * 60 * 1000).toISOString()
 
-  const baseRecord = {
-    pix_code: PLAN_PLACEHOLDER_CODE,
+  const insertRecord = {
+    pix_code: PLAN_SELECTION_CODE,
     amount: payload.amount,
     whatsapp: normalizedWhatsapp,
     nome: resolvedName,
     payment_confirmed: false,
     expires_at: expiresAt,
-    payment_id: paymentId,
-    email: PLAN_PLACEHOLDER_EMAIL,
-    phone: planMetaPhone
+    payment_id: paymentId
   }
 
   try {
     if (existingPayment) {
       await supabase
         .from('pix_payments')
-        .update({ ...baseRecord, updated_at: new Date().toISOString() })
+        .update({
+          amount: payload.amount,
+          nome: resolvedName,
+          payment_confirmed: false,
+          expires_at: expiresAt,
+          payment_id: paymentId ?? existingPayment.payment_id
+        })
         .eq('id', existingPayment.id)
     } else {
       await supabase
         .from('pix_payments')
-        .insert([{ ...baseRecord, created_at: new Date().toISOString() }])
+        .insert([insertRecord])
     }
   } catch (error) {
     console.error('Falha ao sincronizar pix_payments', error)
   }
 
-  return fetchPlanPlaceholder(normalizedWhatsapp)
+  return fetchLatestPendingPayment(normalizedWhatsapp)
 }
 
 export async function updatePendingPayment(payload: UpdatePendingPaymentPayload) {
@@ -124,7 +125,7 @@ export async function updatePendingPayment(payload: UpdatePendingPaymentPayload)
     throw new Error('Whatsapp inválido para atualizar pagamento pendente')
   }
 
-  const existingPayment = await fetchPlanPlaceholder(normalizedWhatsapp)
+  const existingPayment = await fetchLatestPendingPayment(normalizedWhatsapp)
 
   if (!existingPayment) {
     const fallbackPlanId: 'basic' | 'premium' = payload.plan_id ?? 'basic'
@@ -143,19 +144,10 @@ export async function updatePendingPayment(payload: UpdatePendingPaymentPayload)
   }
 
   const updates: Record<string, any> = {
-    updated_at: new Date().toISOString()
-  }
-
-  if (payload.amount !== undefined) {
-    updates.amount = payload.amount
-  }
-  if (payload.nome !== undefined) {
-    updates.nome = payload.nome ?? normalizedWhatsapp
-  }
-  if (payload.plan_id) {
-    updates.phone = `plan:${payload.plan_id}`
-  } else if (!existingPayment.phone?.startsWith('plan:')) {
-    updates.phone = existingPayment.phone ?? `plan:basic`
+    amount: payload.amount ?? existingPayment.amount,
+    nome: payload.nome ?? normalizedWhatsapp,
+    payment_confirmed: false,
+    payment_id: payload.payment_id ?? existingPayment.payment_id
   }
 
   try {
@@ -167,5 +159,5 @@ export async function updatePendingPayment(payload: UpdatePendingPaymentPayload)
     console.error('Falha ao atualizar pix_payments', error)
   }
 
-  return fetchPlanPlaceholder(normalizedWhatsapp)
+  return fetchLatestPendingPayment(normalizedWhatsapp)
 }
