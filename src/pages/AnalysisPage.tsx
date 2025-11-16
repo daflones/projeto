@@ -93,6 +93,7 @@ const AnalysisPage = () => {
   const basePaymentCreatedRef = useRef(false)
   const stepRefs = useRef<(HTMLDivElement | null)[]>([])
   const autoCheckoutHandledRef = useRef(false)
+  const plansViewedTrackedRef = useRef(false)
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'auto' })
@@ -444,6 +445,16 @@ const AnalysisPage = () => {
 
   const analysisResultsSavedRef = useRef(false)
 
+  const trackPlansViewedStep = useCallback(() => {
+    if (plansViewedTrackedRef.current) return
+
+    plansViewedTrackedRef.current = true
+    const rawWhatsapp = analysisData?.whatsapp || ''
+    const cleanWhatsapp = rawWhatsapp.replace(/\D/g, '')
+
+    void trackFunnel('plans_viewed', 4, cleanWhatsapp || undefined)
+  }, [analysisData?.whatsapp, trackFunnel])
+
   async function persistAnalysisResults() {
     if (analysisResultsSavedRef.current) {
       return
@@ -487,6 +498,8 @@ const AnalysisPage = () => {
       content_name: 'Payment Plans',
       content_category: 'Pricing'
     })
+
+    trackPlansViewedStep()
 
     setShowPaymentPlans(true)
 
@@ -560,6 +573,9 @@ const AnalysisPage = () => {
   useEffect(() => {
     if (isAnalyzing) return
     if (!analysisData) return
+
+    trackPlansViewedStep()
+
     if (autoCheckoutHandledRef.current) return
 
     autoCheckoutHandledRef.current = true
@@ -569,7 +585,7 @@ const AnalysisPage = () => {
     } else {
       void handleShowPaymentPlans({ skipScroll: true })
     }
-  }, [analysisData, isAnalyzing, planPreselected, handleProceedToPayment, handleShowPaymentPlans])
+  }, [analysisData, isAnalyzing, planPreselected, handleProceedToPayment, handleShowPaymentPlans, trackPlansViewedStep])
 
   useEffect(() => {
     if (basePaymentCreatedRef.current) return

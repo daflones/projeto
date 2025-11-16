@@ -106,6 +106,19 @@ const QRCodePix = ({ amount, email, phone, whatsapp, nome, hasDiscount, onPaymen
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Regenerar QR Code quando dados principais mudarem após inicialização
+  useEffect(() => {
+    if (!hasInitialized.current) return
+
+    setCopied(false)
+    setPixPaymentId(null)
+    setPixCode('')
+    setIsExpired(false)
+    setTimeLeft(900)
+
+    void createNewPix()
+  }, [amount, hasDiscount, whatsapp, email, phone, nome, createNewPix])
+
   // Gerar QR Code quando pixCode mudar
   useEffect(() => {
     if (canvasRef.current && pixCode) {

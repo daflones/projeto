@@ -413,7 +413,11 @@ const AdminDashboardPage = () => {
               <Wallet className="h-6 w-6 text-rose-500" />
               Pagamentos ({pixPayments.length + cardPayments.length})
             </h3>
-            <PaymentsTable pixPayments={pixPayments} cardPayments={cardPayments} />
+            <PaymentsTable
+              pixPayments={pixPayments}
+              cardPayments={cardPayments}
+              onRefresh={loadDashboardData}
+            />
           </div>
         )}
 
