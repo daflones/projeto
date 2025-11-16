@@ -1,48 +1,140 @@
-import { useState, useEffect } from 'react'
+ import { useEffect, useMemo, useRef, useState } from 'react'
+
 import { useNavigate } from 'react-router-dom'
-import { 
-  AlertTriangle, 
-  MessageCircle, 
-  Image, 
-  Users, 
-  Download,
+import {
+  AlertTriangle,
+  ArrowRight,
   CheckCircle,
-  Phone,
+  Eye,
+  FileDown,
+  FileSpreadsheet,
   FileText,
-  Trash2,
+  Image,
+  MessageCircle,
+  Phone,
   Shield,
-  TrendingUp,
-  Eye
+  Sparkles,
+  Users
 } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { useMetaPixel } from '../hooks/useMetaPixel'
+
+type SectionKey = 'overview' | 'messages' | 'contacts' | 'media' | 'recommendations'
+
+interface SuspiciousContact {
+  name: string
+  number: string
+  risk: string
+}
+
+interface MediaAnalysis {
+  photos: number
+  videos: number
+  deletedMedia: number
+}
+
+interface FinalResults {
+  riskScore: number
+  riskLevel: 'high' | 'medium' | 'low' | string
+  detailedMessages: string[]
+  suspiciousContacts: SuspiciousContact[]
+  mediaAnalysis: MediaAnalysis
+  recommendations: string[]
+}
+
+interface AnalysisData {
+  whatsapp: string
+  nome?: string
+  selectedPlanId?: 'basic' | 'premium'
+  email?: string
+}
+
+interface SectionConfig {
+  id: SectionKey
+  label: string
+  description: string
+  icon: LucideIcon
+}
+
+const SECTION_CONFIG: SectionConfig[] = [
+  {
+    id: 'overview',
+    label: 'Resumo geral',
+    description: 'Panorama da análise e nível de risco',
+    icon: Sparkles
+  },
+  {
+    id: 'messages',
+    label: 'Mensagens suspeitas',
+    description: 'Conversas que chamaram atenção na auditoria',
+    icon: MessageCircle
+  },
+  {
+    id: 'contacts',
+    label: 'Contatos suspeitos',
+    description: 'Pessoas envolvidas em interações críticas',
+    icon: Users
+  },
+  {
+    id: 'media',
+    label: 'Mídias e arquivos',
+    description: 'Fotos, vídeos e itens deletados encontrados',
+    icon: Image
+  },
+  {
+    id: 'recommendations',
+    label: 'Próximos passos',
+    description: 'Orientações estratégicas após a análise',
+    icon: CheckCircle
+  }
+]
+
+const riskLabel = (level: string) => {
+  switch (level) {
+    case 'high':
+      return 'Alto risco'
+    case 'medium':
+      return 'Risco moderado'
+    default:
+      return 'Baixo risco'
+  }
+}
+
+const planLabel = (planId?: 'basic' | 'premium') => {
+  if (planId === 'premium') return 'Plano Vitalício'
+  if (planId === 'basic') return 'Análise Completa'
+  return 'Plano não informado'
+}
 
 const ResultPage = () => {
   const navigate = useNavigate()
   const { trackEvent } = useMetaPixel()
-  const [finalResults, setFinalResults] = useState<any>(null)
-  const [analysisData, setAnalysisData] = useState<any>(null)
-  const [activeTab, setActiveTab] = useState('messages')
-  const [isDownloading, setIsDownloading] = useState(false)
+  const [finalResults, setFinalResults] = useState<FinalResults | null>(null)
+  const [analysisData, setAnalysisData] = useState<AnalysisData | null>(null)
+  const [activeSection, setActiveSection] = useState<SectionKey>('overview')
+  const [isExporting, setIsExporting] = useState<'pdf' | 'csv' | 'md' | null>(null)
+  const sectionRefs = useRef<Record<SectionKey, HTMLDivElement | null>>({
+    overview: null,
+    messages: null,
+    contacts: null,
+    media: null,
+    recommendations: null
+  })
 
   useEffect(() => {
-    // Verificar se o pagamento foi confirmado
+    window.scrollTo({ top: 0, behavior: 'smooth' })
     const paymentConfirmed = localStorage.getItem('paymentConfirmed')
     const paymentTimestamp = localStorage.getItem('paymentTimestamp')
-    
-    // Se não tiver pagamento confirmado ou se passou mais de 1 hora, redirecionar
+
     if (!paymentConfirmed || paymentConfirmed !== 'true') {
       navigate('/')
       return
     }
-    
-    // Verificar se o acesso ainda é válido (1 hora)
+
     if (paymentTimestamp) {
-      const timestamp = parseInt(paymentTimestamp)
-      const oneHour = 60 * 60 * 1000 // 1 hora em milissegundos
-      const now = Date.now()
-      
-      if (now - timestamp > oneHour) {
-        // Acesso expirado, limpar dados e redirecionar
+      const timestamp = Number(paymentTimestamp)
+      const oneHour = 60 * 60 * 1000
+      if (Date.now() - timestamp > oneHour) {
         localStorage.removeItem('paymentConfirmed')
         localStorage.removeItem('paymentTimestamp')
         localStorage.removeItem('finalResults')
@@ -50,546 +142,537 @@ const ResultPage = () => {
         return
       }
     }
-    
-    // Verificar se temos dados dos resultados
+
     const results = localStorage.getItem('finalResults')
     const data = localStorage.getItem('analysisData')
-    
+
     if (!results || !data) {
       navigate('/')
       return
     }
-    
-    setFinalResults(JSON.parse(results))
-    setAnalysisData(JSON.parse(data))
-    
-    // Rastreia visualização dos resultados (conversão final)
+
+    try {
+      setFinalResults(JSON.parse(results))
+      setAnalysisData(JSON.parse(data))
+    } catch (error) {
+      navigate('/')
+      return
+    }
+
     trackEvent('ViewContent', {
       content_name: 'Analysis Results',
       content_category: 'Results Page'
     })
   }, [navigate, trackEvent])
 
-  const getRiskText = (level: string) => {
-    switch (level) {
-      case 'high': return 'ALTO RISCO'
-      case 'medium': return 'RISCO MÉDIO'
-      default: return 'BAIXO RISCO'
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      entries => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            setActiveSection(entry.target.getAttribute('data-section') as SectionKey)
+          }
+        })
+      },
+      {
+        rootMargin: '-30% 0px -50% 0px',
+        threshold: 0.3
+      }
+    )
+
+    const elements = Object.values(sectionRefs.current).filter(Boolean) as HTMLDivElement[]
+    elements.forEach(el => observer.observe(el))
+
+    return () => {
+      elements.forEach(el => observer.unobserve(el))
     }
-  }
+  }, [finalResults])
+
+  const stats = useMemo(() => {
+    if (!finalResults) return null
+    const mediaTotal = finalResults.mediaAnalysis.photos + finalResults.mediaAnalysis.videos
+    return {
+      messages: finalResults.detailedMessages.length,
+      contacts: finalResults.suspiciousContacts.length,
+      mediaTotal,
+      deleted: finalResults.mediaAnalysis.deletedMedia
+    }
+  }, [finalResults])
 
   const handleNewAnalysis = () => {
-    // Limpar todos os dados do localStorage
     localStorage.removeItem('paymentConfirmed')
     localStorage.removeItem('paymentTimestamp')
     localStorage.removeItem('finalResults')
     localStorage.removeItem('analysisResults')
     localStorage.removeItem('analysisData')
-    
-    // Redirecionar para página inicial
     navigate('/')
   }
 
-  const handleDownloadPDF = async () => {
-    // Rastreia download do relatório
-    trackEvent('ViewContent', {
-      content_name: 'PDF Report Download',
-      content_category: 'Download'
+  const handleExport = async (type: 'pdf' | 'csv' | 'md') => {
+    if (!analysisData || !finalResults) return
+
+    trackEvent('InitiateCheckout', {
+      content_name: `Export ${type.toUpperCase()} Report`,
+      content_category: 'Results Export'
     })
-    
-    setIsDownloading(true)
-    await new Promise(resolve => setTimeout(resolve, 2000))
-    
-    const pdfContent = `
-RELATÓRIO COMPLETO - DETECTOR DE TRAIÇÃO
-===========================================
 
-ANÁLISE DO WhatsApp: ${analysisData.whatsapp}
-Data: ${new Date().toLocaleDateString('pt-BR')}
+    if (type === 'pdf') {
+      setIsExporting('pdf')
+      setTimeout(() => {
+        window.print()
+        setIsExporting(null)
+      }, 200)
+      return
+    }
 
-PONTUAÇÃO DE RISCO: ${finalResults.riskScore}/100
+    setIsExporting(type)
+    await new Promise(resolve => setTimeout(resolve, 300))
 
-MENSAGENS SUSPEITAS ENCONTRADAS:
-${finalResults.detailedMessages.map((msg: string, i: number) => `${i + 1}. ${msg}`).join('\n')}
+    let content = ''
+    let mime = 'text/plain'
+    let extension = type
 
-CONTATOS SUSPEITOS:
-${finalResults.suspiciousContacts.map((c: any, i: number) => `${i + 1}. ${c.name} - ${c.number} (Risco: ${c.risk})`).join('\n')}
+    if (type === 'csv') {
+      mime = 'text/csv;charset=utf-8;'
+      const header = 'tipo,descricao,contato,numero,risco\n'
+      const messageRows = finalResults.detailedMessages.map(msg => `Mensagem,"${msg.replace(/"/g, '""')}",,,`)
+      const contactRows = finalResults.suspiciousContacts.map(contact => `Contato,,${contact.name},${contact.number},${contact.risk}`)
+      const mediaRow = `Mídias,"Fotos: ${finalResults.mediaAnalysis.photos} | Vídeos: ${finalResults.mediaAnalysis.videos}",,,`
+      content = [header, ...messageRows, ...contactRows, mediaRow].join('\n')
+    }
 
-MÍDIAS ENCONTRADAS:
-- Fotos: ${finalResults.mediaAnalysis.photos}
-- Vídeos: ${finalResults.mediaAnalysis.videos}
-- Itens Deletados: ${finalResults.mediaAnalysis.deletedMedia}
-    `
-    
-    const blob = new Blob([pdfContent], { type: 'text/plain' })
+    if (type === 'md') {
+      mime = 'text/markdown;charset=utf-8;'
+      extension = 'md'
+      content = `# Relatório detalhado\n\n- WhatsApp analisado: **${analysisData.whatsapp}**\n- Plano contratado: **${planLabel(analysisData.selectedPlanId)}**\n- Pontuação de risco: **${finalResults.riskScore}/100** (${riskLabel(finalResults.riskLevel)})\n\n## Mensagens suspeitas\n${finalResults.detailedMessages.length ? finalResults.detailedMessages.map(msg => `- ${msg}`).join('\n') : '- Nenhuma mensagem suspeita encontrada.'}\n\n## Contatos suspeitos\n${finalResults.suspiciousContacts.length ? finalResults.suspiciousContacts.map(contact => `- ${contact.name} (${contact.number}) • Risco ${contact.risk}`).join('\n') : '- Nenhum contato suspeito identificado.'}\n\n## Estatísticas de mídias\n- Fotos suspeitas: ${finalResults.mediaAnalysis.photos}\n- Vídeos suspeitos: ${finalResults.mediaAnalysis.videos}\n- Itens deletados: ${finalResults.mediaAnalysis.deletedMedia}`
+    }
+
+    const blob = new Blob([content], { type: mime })
     const url = window.URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url
-    link.download = `relatorio-${Date.now()}.txt`
+    link.download = `relatorio-${Date.now()}.${extension}`
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
     window.URL.revokeObjectURL(url)
-    
-    setIsDownloading(false)
+    setIsExporting(null)
   }
 
-  if (!finalResults || !analysisData) {
+  const scrollToSection = (section: SectionKey) => {
+    const target = sectionRefs.current[section]
+    if (target) {
+      target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }
+
+  if (!finalResults || !analysisData || !stats) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-gray-900 text-2xl">Carregando resultados...</div>
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center">
+        <div className="rounded-3xl border border-white/10 bg-white/5 px-10 py-8 text-center text-slate-200 shadow-xl">
+          Carregando relatório completo...
+        </div>
       </div>
     )
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header Moderno */}
-      <div className="danger-gradient text-white shadow-2xl">
-        <div className="container mx-auto px-4 py-10">
-          <div className="max-w-6xl mx-auto">
-            <div className="flex items-center justify-between mb-8">
-              <button
-                onClick={handleNewAnalysis}
-                className="flex items-center text-white/80 hover:text-white transition-colors"
-              >
-                <Shield className="w-6 h-6 mr-2" />
-                <span className="font-semibold">Nova Análise</span>
-              </button>
-              <div className="text-sm text-white/70">
-                {new Date().toLocaleDateString('pt-BR')}
-              </div>
-            </div>
-            
-            <div className="text-center">
-              <h1 className="text-5xl font-extrabold mb-4 drop-shadow-lg">
-                Relatório Completo
-              </h1>
-              
-              <div className="inline-flex items-center gap-8 bg-white/10 backdrop-blur-md px-10 py-5 rounded-2xl border border-white/20 mb-8">
-                <div>
-                  <div className="text-sm text-white/70">WhatsApp Analisado</div>
-                  <div className="font-bold text-2xl font-mono">{analysisData.whatsapp}</div>
-                </div>
-                <div className="w-px h-12 bg-white/30"></div>
-                <div>
-                  <div className="text-sm text-white/70">Data da Análise</div>
-                  <div className="font-bold text-2xl">{new Date().toLocaleDateString('pt-BR')}</div>
-                </div>
-              </div>
-
-              <button 
-                onClick={handleDownloadPDF}
-                disabled={isDownloading}
-                className="bg-white text-red-700 px-10 py-5 rounded-2xl font-bold text-lg hover:bg-gray-100 transition-all shadow-2xl disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-3"
-              >
-                {isDownloading ? (
-                  <>
-                    <div className="w-6 h-6 border-4 border-red-700 border-t-transparent rounded-full animate-spin"></div>
-                    Gerando Relatório...
-                  </>
-                ) : (
-                  <>
-                    <Download className="w-6 h-6" />
-                    Baixar Relatório Completo
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
+    <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-slate-950 via-slate-900 to-black text-slate-100">
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute -left-32 top-10 h-80 w-80 rounded-full bg-rose-600/20 blur-[120px]" />
+        <div className="absolute right-10 top-60 h-72 w-72 rounded-full bg-indigo-500/20 blur-[120px]" />
+        <div className="absolute -bottom-10 left-1/3 h-96 w-96 rounded-full bg-amber-500/10 blur-[140px]" />
       </div>
 
-      <div className="container mx-auto px-4 py-8">
-        <div className="max-w-6xl mx-auto">
-          {/* Risk Score Card */}
-          <div className="glass-card p-8 mb-8 warning-glow">
-            <div className="text-center">
-              <div className="flex items-center justify-center mb-8">
-                <div className="relative">
-                  <div className={`p-8 rounded-full border-4 ${
-                    finalResults.riskLevel === 'high' 
-                      ? 'bg-red-500/20 border-red-500/50' 
-                      : 'bg-yellow-500/20 border-yellow-500/50'
-                  }`}>
-                    <AlertTriangle className="w-20 h-20 text-red-400" />
-                  </div>
-                  <div className="absolute -inset-2 bg-red-500/20 rounded-full animate-ping"></div>
-                </div>
+      <div className="relative mx-auto flex w-full max-w-7xl flex-col gap-10 px-4 pb-20 pt-12 lg:flex-row">
+        <aside className="sticky top-10 h-fit w-full shrink-0 rounded-3xl border border-white/10 bg-white/5 backdrop-blur-lg lg:w-72">
+          <div className="space-y-8 p-6">
+            <header className="space-y-4">
+              <div className="inline-flex items-center gap-2 rounded-full border border-rose-400/40 bg-rose-500/20 px-4 py-1 text-xs font-semibold text-rose-100">
+                <Shield className="h-4 w-4" /> Relatório exclusivo
               </div>
-              
-              <h2 className="text-5xl font-bold mb-6 text-gray-900">
-                Pontuação de Risco: {finalResults.riskScore}/100
-              </h2>
-              
-              <div className={`inline-block px-8 py-4 rounded-2xl border-2 font-bold text-2xl mb-6 ${
-                finalResults.riskLevel === 'high'
-                  ? 'bg-red-500/20 border-red-500/50 text-red-300'
-                  : 'bg-yellow-500/20 border-yellow-500/50 text-yellow-300'
-              }`}>
-                {getRiskText(finalResults.riskLevel)}
+              <div>
+                <h1 className="text-2xl font-bold text-white">Resultado da análise</h1>
+                <p className="text-sm text-slate-300/80">{new Date().toLocaleDateString('pt-BR')}</p>
               </div>
-              
-              <p className="text-gray-700 text-xl max-w-3xl mx-auto">
-                {finalResults.riskLevel === 'high' 
-                  ? 'Foram encontradas evidências significativas de comportamento suspeito que merecem atenção imediata.'
-                  : 'Algumas atividades suspeitas foram identificadas, mas podem ter explicações inocentes.'
-                }
-              </p>
-            </div>
+            </header>
 
-            {/* Progress Bar */}
-            <div className="mt-10">
-              <div className="flex justify-between text-xl text-gray-900 mb-4">
-                <span className="font-bold">Nível de Suspeita</span>
-                <span className="font-bold text-red-300">{finalResults.riskScore}%</span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-8 overflow-hidden border-2 border-gray-300">
-                <div 
-                  className={`h-full rounded-full transition-all duration-1000 relative flex items-center justify-end pr-3 ${
-                    finalResults.riskScore >= 80 ? 'bg-gradient-to-r from-red-500 via-red-600 to-red-700' :
-                    finalResults.riskScore >= 60 ? 'bg-gradient-to-r from-yellow-500 via-orange-500 to-red-500' : 
-                    'bg-gradient-to-r from-green-500 via-yellow-500 to-orange-500'
-                  }`}
-                  style={{ width: `${finalResults.riskScore}%` }}
+            <section className="space-y-2">
+              <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Sessões</p>
+              <nav className="space-y-2">
+                {SECTION_CONFIG.map(section => {
+                  const Icon = section.icon
+                  const isActive = activeSection === section.id
+                  return (
+                    <button
+                      key={section.id}
+                      onClick={() => {
+                        setActiveSection(section.id)
+                        scrollToSection(section.id)
+                      }}
+                      className={`group flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left transition-all ${
+                        isActive
+                          ? 'border-rose-400/50 bg-rose-500/20 text-white shadow-lg shadow-rose-500/30'
+                          : 'border-white/5 bg-white/5 text-slate-300 hover:border-rose-400/40 hover:bg-rose-500/10 hover:text-white'
+                      }`}
+                    >
+                      <Icon className={`h-4 w-4 ${isActive ? 'text-rose-100' : 'text-rose-200/60 group-hover:text-rose-100'}`} />
+                      <div>
+                        <p className="text-sm font-semibold">{section.label}</p>
+                        <p className="text-xs text-slate-300/70">{section.description}</p>
+                      </div>
+                    </button>
+                  )
+                })}
+              </nav>
+            </section>
+
+            <section className="space-y-3">
+              <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Exportar</p>
+              <div className="space-y-2">
+                <button
+                  onClick={() => handleExport('pdf')}
+                  className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:border-rose-400/40 hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={isExporting === 'pdf'}
                 >
-                  <span className="relative z-10 text-white font-bold text-sm drop-shadow-lg">{finalResults.riskScore}%</span>
+                  <span className="inline-flex items-center gap-2"><FileDown className="h-4 w-4" /> Relatório PDF</span>
+                  <span className="text-xs text-rose-100">{isExporting === 'pdf' ? 'Abrindo...' : 'Imprimir'}</span>
+                </button>
+                <button
+                  onClick={() => handleExport('csv')}
+                  className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:border-rose-400/40 hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={isExporting === 'csv'}
+                >
+                  <span className="inline-flex items-center gap-2"><FileSpreadsheet className="h-4 w-4" /> Exportar CSV</span>
+                  <span className="text-xs text-rose-100">{isExporting === 'csv' ? 'Gerando...' : 'Download'}</span>
+                </button>
+                <button
+                  onClick={() => handleExport('md')}
+                  className="flex w-full items-center justify-between rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white transition hover:border-rose-400/40 hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                  disabled={isExporting === 'md'}
+                >
+                  <span className="inline-flex items-center gap-2"><FileText className="h-4 w-4" /> Exportar Markdown</span>
+                  <span className="text-xs text-rose-100">{isExporting === 'md' ? 'Gerando...' : 'Download'}</span>
+                </button>
+              </div>
+              <p className="rounded-2xl border border-rose-400/30 bg-rose-500/10 px-4 py-3 text-xs text-rose-100">
+                Exportações ficam salvas localmente. Guarde com sigilo e não compartilhe sem proteção.
+              </p>
+            </section>
+
+            <section className="space-y-3 rounded-2xl border border-white/10 bg-white/5 p-4 text-sm text-slate-300">
+              <div className="space-y-1">
+                <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Dados analisados</p>
+                <p className="font-semibold text-white">{analysisData.nome ?? 'Contato confidencial'}</p>
+                <p className="text-xs text-slate-400">WhatsApp: {analysisData.whatsapp}</p>
+              </div>
+              <div className="mt-3 flex items-center gap-3 text-xs text-slate-400">
+                <Sparkles className="h-4 w-4 text-rose-200" /> Plano: {planLabel(analysisData.selectedPlanId)}
+              </div>
+            </section>
+          </div>
+        </aside>
+
+        <main className="flex-1 space-y-12">
+          <section
+            ref={el => (sectionRefs.current.overview = el)}
+            data-section="overview"
+            className="relative overflow-hidden rounded-3xl border border-white/10 bg-gradient-to-br from-white/10 via-white/5 to-transparent p-8 sm:p-12"
+          >
+            <div className="absolute inset-0 opacity-40">
+              <div className="absolute -top-24 left-1/3 h-64 w-64 rounded-full bg-rose-500/40 blur-3xl" />
+              <div className="absolute bottom-0 right-0 h-72 w-72 rounded-full bg-indigo-400/30 blur-3xl" />
+            </div>
+            <div className="relative z-10 flex flex-col gap-10">
+              <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+                <div>
+                  <div className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-1 text-xs uppercase tracking-[0.3em] text-slate-200">
+                    <Sparkles className="h-4 w-4" /> Relatório finalizado
+                  </div>
+                  <h2 className="mt-4 text-4xl font-bold text-white sm:text-5xl">
+                    {analysisData.nome ? `Análise de ${analysisData.nome}` : 'Relatório confidencial'}
+                  </h2>
+                  <p className="mt-3 max-w-2xl text-base text-slate-200/80">
+                    Resultado completo da auditoria realizada no WhatsApp {analysisData.whatsapp}. Avaliamos conversas, contatos e mídias para entregar uma visão clara do nível de risco identificado.
+                  </p>
+                </div>
+                <div className="rounded-3xl border border-white/20 bg-white/10 p-6 text-right text-sm text-slate-200">
+                  <p className="text-xs uppercase tracking-[0.2em] text-slate-300">Pontuação de risco</p>
+                  <p className="mt-2 text-5xl font-black text-white">{finalResults.riskScore}<span className="text-2xl text-white/60">/100</span></p>
+                  <p className="mt-2 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-xs font-semibold text-rose-100">
+                    <AlertTriangle className="h-4 w-4" /> {riskLabel(finalResults.riskLevel)}
+                  </p>
                 </div>
               </div>
-              <div className="flex justify-between text-sm text-gray-600 mt-3 font-semibold">
-                <span>0% Baixo</span>
-                <span>50% Médio</span>
-                <span>100% Alto</span>
-              </div>
-            </div>
-          </div>
 
-          {/* Summary Cards */}
-          <div className="grid md:grid-cols-4 gap-6 mb-8">
-            <div className="glass-card p-6 text-center ">
-              <div className="bg-red-500/20 p-4 rounded-full w-fit mx-auto mb-4 border border-red-500/30">
-                <MessageCircle className="w-12 h-12 text-red-400" />
+              <div>
+                <div className="relative h-3 w-full overflow-hidden rounded-full bg-white/10">
+                  <div
+                    className={`absolute inset-y-0 left-0 rounded-full ${
+                      finalResults.riskScore >= 75
+                        ? 'bg-gradient-to-r from-rose-500 via-rose-600 to-rose-700'
+                        : finalResults.riskScore >= 45
+                        ? 'bg-gradient-to-r from-amber-400 via-orange-500 to-rose-500'
+                        : 'bg-gradient-to-r from-emerald-400 via-teal-500 to-blue-500'
+                    }`}
+                    style={{ width: `${Math.min(finalResults.riskScore, 100)}%` }}
+                  />
+                </div>
+                <div className="mt-3 flex justify-between text-xs text-slate-300">
+                  <span>0 - Seguro</span>
+                  <span>50 - Atenção</span>
+                  <span>100 - Crítico</span>
+                </div>
               </div>
-              <div className="text-4xl font-bold text-red-400 mb-2">
-                {finalResults.detailedMessages.length}
-              </div>
-              <div className="text-gray-800 font-semibold mb-1">Mensagens Suspeitas</div>
-              <div className="text-gray-600 text-sm">Detectadas</div>
-            </div>
-            
-            <div className="glass-card p-6 text-center ">
-              <div className="bg-orange-500/20 p-4 rounded-full w-fit mx-auto mb-4 border border-orange-500/30">
-                <Image className="w-12 h-12 text-orange-400" />
-              </div>
-              <div className="text-4xl font-bold text-orange-400 mb-2">
-                {finalResults.mediaAnalysis.photos + finalResults.mediaAnalysis.videos}
-              </div>
-              <div className="text-gray-800 font-semibold mb-1">Mídias Suspeitas</div>
-              <div className="text-gray-600 text-sm">Encontradas</div>
-            </div>
-            
-            <div className="glass-card p-6 text-center ">
-              <div className="bg-purple-500/20 p-4 rounded-full w-fit mx-auto mb-4 border border-purple-500/30">
-                <Users className="w-12 h-12 text-purple-400" />
-              </div>
-              <div className="text-4xl font-bold text-purple-400 mb-2">
-                {finalResults.suspiciousContacts.length}
-              </div>
-              <div className="text-gray-800 font-semibold mb-1">Contatos Suspeitos</div>
-              <div className="text-gray-600 text-sm">Identificados</div>
-            </div>
-            
-            <div className="glass-card p-6 text-center ">
-              <div className="bg-blue-500/20 p-4 rounded-full w-fit mx-auto mb-4 border border-blue-500/30">
-                <TrendingUp className="w-12 h-12 text-blue-400" />
-              </div>
-              <div className="text-4xl font-bold text-blue-400 mb-2">
-                {finalResults.mediaAnalysis.deletedMedia}
-              </div>
-              <div className="text-gray-800 font-semibold mb-1">Itens Deletados</div>
-              <div className="text-gray-600 text-sm">Recuperados</div>
-            </div>
-          </div>
 
-          {/* Tabs */}
-          <div className="mb-8">
-            <div className="flex flex-wrap gap-3 mb-6">
-              <button
-                onClick={() => setActiveTab('messages')}
-                className={`flex items-center gap-3 px-8 py-4 rounded-2xl font-bold text-base transition-all duration-300 border-2 ${
-                  activeTab === 'messages'
-                    ? 'bg-red-600 border-red-400 shadow-xl shadow-red-500/50'
-                    : 'bg-gray-800 border-gray-700 hover:bg-gray-700'
-                }`}
-              >
-                <MessageCircle className={`w-6 h-6 ${activeTab === 'messages' ? 'text-white' : 'text-gray-700'}`} />
-                <span className={activeTab === 'messages' ? 'text-white' : 'text-gray-700 hover:text-gray-900'}>Mensagens</span>
-              </button>
-
-              <button
-                onClick={() => setActiveTab('contacts')}
-                className={`flex items-center gap-3 px-8 py-4 rounded-2xl font-bold text-base transition-all duration-300 border-2 ${
-                  activeTab === 'contacts'
-                    ? 'bg-purple-600 border-purple-400 shadow-xl shadow-purple-500/50'
-                    : 'bg-gray-800 border-gray-700 hover:bg-gray-700'
-                }`}
-              >
-                <Users className={`w-6 h-6 ${activeTab === 'contacts' ? 'text-white' : 'text-gray-700'}`} />
-                <span className={activeTab === 'contacts' ? 'text-white' : 'text-gray-700 hover:text-gray-900'}>Contatos</span>
-              </button>
-
-              <button
-                onClick={() => setActiveTab('media')}
-                className={`flex items-center gap-3 px-8 py-4 rounded-2xl font-bold text-base transition-all duration-300 border-2 ${
-                  activeTab === 'media'
-                    ? 'bg-blue-600 border-blue-400 shadow-xl shadow-blue-500/50'
-                    : 'bg-gray-800 border-gray-700 hover:bg-gray-700'
-                }`}
-              >
-                <Image className={`w-6 h-6 ${activeTab === 'media' ? 'text-white' : 'text-gray-700'}`} />
-                <span className={activeTab === 'media' ? 'text-white' : 'text-gray-700 hover:text-gray-900'}>Mídias</span>
-              </button>
-
-              <button
-                onClick={() => setActiveTab('recommendations')}
-                className={`flex items-center gap-3 px-8 py-4 rounded-2xl font-bold text-base transition-all duration-300 border-2 ${
-                  activeTab === 'recommendations'
-                    ? 'bg-green-600 border-green-400 shadow-xl shadow-green-500/50'
-                    : 'bg-gray-800 border-gray-700 hover:bg-gray-700'
-                }`}
-              >
-                <CheckCircle className={`w-6 h-6 ${activeTab === 'recommendations' ? 'text-white' : 'text-gray-700'}`} />
-                <span className={activeTab === 'recommendations' ? 'text-white' : 'text-gray-700 hover:text-gray-900'}>Recomendações</span>
-              </button>
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="rounded-2xl border border-rose-400/40 bg-rose-500/10 p-5">
+                  <p className="text-xs uppercase tracking-[0.2em] text-rose-100/70">Mensagens</p>
+                  <p className="mt-2 text-3xl font-bold text-white">{stats.messages}</p>
+                  <p className="text-sm text-rose-100/70">Mensagens suspeitas registradas</p>
+                </div>
+                <div className="rounded-2xl border border-indigo-400/30 bg-indigo-500/10 p-5">
+                  <p className="text-xs uppercase tracking-[0.2em] text-indigo-100/70">Contatos</p>
+                  <p className="mt-2 text-3xl font-bold text-white">{stats.contacts}</p>
+                  <p className="text-sm text-indigo-100/70">Contatos com comportamento crítico</p>
+                </div>
+                <div className="rounded-2xl border border-amber-400/30 bg-amber-500/10 p-5">
+                  <p className="text-xs uppercase tracking-[0.2em] text-amber-100/70">Mídias</p>
+                  <p className="mt-2 text-3xl font-bold text-white">{stats.mediaTotal}</p>
+                  <p className="text-sm text-amber-100/70">Fotos e vídeos suspeitos</p>
+                </div>
+                <div className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 p-5">
+                  <p className="text-xs uppercase tracking-[0.2em] text-emerald-100/70">Deletados</p>
+                  <p className="mt-2 text-3xl font-bold text-white">{stats.deleted}</p>
+                  <p className="text-sm text-emerald-100/70">Itens removidos recentemente</p>
+                </div>
+              </div>
             </div>
-            
-            <div className="glass-card p-10">
-              {activeTab === 'messages' && (
-                <div>
-                  <h3 className="text-4xl font-bold text-gray-900 mb-4">
-                    💬 Mensagens Suspeitas Detectadas
-                  </h3>
-                  <p className="text-gray-700 text-xl mb-10">
-                    Encontramos <span className="text-red-400 font-bold text-2xl">{finalResults.detailedMessages.length}</span> mensagens comprometedoras
-                  </p>
-                  
-                  <div className="grid gap-6">
-                    {finalResults.detailedMessages.map((message: string, index: number) => (
-                      <div key={index} className="bg-white border-2 border-red-500/30 rounded-2xl p-6 hover:border-red-500/60 transition-all shadow-sm">
-                        <div className="flex items-start gap-5">
-                          <div className="flex-shrink-0 w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center border-2 border-red-500/40">
-                            <MessageCircle className="w-6 h-6 text-red-400" />
-                          </div>
-                          <div className="flex-1">
-                            <div className="bg-red-50 border-l-4 border-red-500 rounded-r-xl p-5 mb-4">
-                              <p className="text-gray-900 font-semibold text-xl leading-relaxed">
-                                "{message}"
-                              </p>
-                            </div>
-                            <div className="flex items-center gap-3 text-sm">
-                              <span className="text-gray-600">
-                                {new Date().toLocaleDateString('pt-BR')} às {Math.floor(Math.random() * 24).toString().padStart(2, '0')}:{Math.floor(Math.random() * 60).toString().padStart(2, '0')}
-                              </span>
-                              <span className="bg-red-600 text-white px-4 py-1.5 rounded-full font-bold text-xs">
-                                SUSPEITA
-                              </span>
-                            </div>
-                          </div>
+          </section>
+
+          <section
+            ref={el => (sectionRefs.current.messages = el)}
+            data-section="messages"
+            className="rounded-3xl border border-white/10 bg-white/5 p-8 sm:p-10"
+          >
+            <header className="mb-6 flex items-start justify-between gap-6">
+              <div>
+                <div className="inline-flex items-center gap-2 rounded-full border border-rose-400/30 bg-rose-500/10 px-4 py-1 text-xs font-semibold text-rose-100">
+                  <MessageCircle className="h-4 w-4" /> Conversas monitoradas
+                </div>
+                <h3 className="mt-4 text-3xl font-bold text-white">Mensagens suspeitas</h3>
+                <p className="mt-2 text-sm text-slate-300/80">
+                  Selecionamos as mensagens com maior potencial de risco para você revisar com atenção. Use-as como evidência documentada.
+                </p>
+              </div>
+            </header>
+
+            {finalResults.detailedMessages.length === 0 ? (
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-center text-sm text-slate-300">
+                Nenhuma mensagem suspeita foi detectada nesta análise.
+              </div>
+            ) : (
+              <div className="space-y-5">
+                {finalResults.detailedMessages.map((message, index) => (
+                  <div
+                    key={index}
+                    className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-r from-rose-500/20 via-rose-500/10 to-transparent p-6"
+                  >
+                    <span className="absolute right-6 top-5 text-xs font-semibold text-rose-100/80">#{index + 1}</span>
+                    <div className="flex items-start gap-4">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-rose-400/30 bg-rose-500/10">
+                        <MessageCircle className="h-6 w-6 text-rose-100" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-lg font-semibold text-white">Mensagem suspeita</p>
+                        <p className="mt-2 text-base leading-relaxed text-slate-200">“{message}”</p>
+                        <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-slate-300/80">
+                          <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1">
+                            <Eye className="h-3.5 w-3.5" /> Monitoramento sigiloso
+                          </span>
+                          <span className="rounded-full border border-rose-400/40 bg-rose-500/20 px-3 py-1 text-rose-100">Sinal de alerta</span>
                         </div>
                       </div>
-                    ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                ))}
+              </div>
+            )}
+          </section>
 
-              {activeTab === 'contacts' && (
-                <div>
-                  <h3 className="text-4xl font-bold text-gray-900 mb-8">
-                    📞 Contatos Suspeitos Identificados
-                  </h3>
-                  <p className="text-gray-700 text-lg mb-8">
-                    Encontramos {finalResults.suspiciousContacts.length} contatos com comportamento suspeito:
-                  </p>
-                  
-                  <div className="space-y-5">
-                    {finalResults.suspiciousContacts.map((contact: any, index: number) => (
-                      <div key={index} className="bg-gradient-to-r from-purple-600/20 to-pink-600/20 border-2 border-purple-500/50 rounded-2xl p-8 hover:scale-[1.02] transition-transform">
-                        <div className="flex items-center justify-between flex-wrap gap-4">
-                          <div className="flex items-center gap-5">
-                            <div className="w-20 h-20 bg-purple-500/30 rounded-full flex items-center justify-center border-3 border-purple-400">
-                              <Phone className="w-10 h-10 text-purple-200" />
-                            </div>
-                            <div>
-                              <h4 className="font-bold text-gray-900 text-2xl mb-2">{contact.name}</h4>
-                              <p className="text-purple-100 text-xl font-mono bg-purple-900/30 px-4 py-2 rounded-lg inline-block">
-                                {contact.number}
-                              </p>
-                            </div>
-                          </div>
-                          <div className={`px-6 py-3 rounded-xl text-lg font-bold border-3 ${
-                            contact.risk === 'Alto' 
-                              ? 'bg-red-600 text-white border-red-400 shadow-lg shadow-red-500/50' 
-                              : 'bg-yellow-600 text-white border-yellow-400 shadow-lg shadow-yellow-500/50'
+          <section
+            ref={el => (sectionRefs.current.contacts = el)}
+            data-section="contacts"
+            className="rounded-3xl border border-white/10 bg-white/5 p-8 sm:p-10"
+          >
+            <header className="mb-6 flex items-start justify-between gap-6">
+              <div>
+                <div className="inline-flex items-center gap-2 rounded-full border border-indigo-400/30 bg-indigo-500/10 px-4 py-1 text-xs font-semibold text-indigo-100">
+                  <Users className="h-4 w-4" /> Principais envolvidos
+                </div>
+                <h3 className="mt-4 text-3xl font-bold text-white">Contatos em evidência</h3>
+                <p className="mt-2 text-sm text-slate-300/80">
+                  Listei os contatos que apresentaram comportamento fora do padrão. Observe níveis de risco e padrões de interação.
+                </p>
+              </div>
+            </header>
+
+            {finalResults.suspiciousContacts.length === 0 ? (
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-center text-sm text-slate-300">
+                Nenhum contato suspeito foi identificado nesta análise.
+              </div>
+            ) : (
+              <div className="grid gap-5 md:grid-cols-2">
+                {finalResults.suspiciousContacts.map((contact, index) => (
+                  <div
+                    key={`${contact.number}-${index}`}
+                    className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-indigo-500/10 to-transparent p-6"
+                  >
+                    <div className="flex items-start gap-4">
+                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-indigo-400/30 bg-indigo-500/10">
+                        <Phone className="h-5 w-5 text-indigo-100" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-lg font-semibold text-white">{contact.name || 'Contato não identificado'}</p>
+                        <p className="mt-1 text-sm text-indigo-100/80">{contact.number}</p>
+                        <div className="mt-4 flex flex-wrap items-center gap-3 text-xs">
+                          <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-slate-200">Interações recorrentes</span>
+                          <span className={`rounded-full border px-3 py-1 font-semibold ${
+                            contact.risk === 'Alto'
+                              ? 'border-rose-400/50 bg-rose-500/20 text-rose-100'
+                              : 'border-amber-400/40 bg-amber-500/20 text-amber-100'
                           }`}>
                             Risco {contact.risk}
-                          </div>
+                          </span>
                         </div>
                       </div>
-                    ))}
+                    </div>
                   </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <section
+            ref={el => (sectionRefs.current.media = el)}
+            data-section="media"
+            className="rounded-3xl border border-white/10 bg-white/5 p-8 sm:p-10"
+          >
+            <header className="mb-6 flex items-start justify-between gap-6">
+              <div>
+                <div className="inline-flex items-center gap-2 rounded-full border border-amber-400/30 bg-amber-500/10 px-4 py-1 text-xs font-semibold text-amber-100">
+                  <Image className="h-4 w-4" /> Evidências visuais
                 </div>
-              )}
+                <h3 className="mt-4 text-3xl font-bold text-white">Mídias e arquivos detectados</h3>
+                <p className="mt-2 text-sm text-slate-300/80">
+                  Quantificamos todas as mídias compartilhadas e identificamos itens removidos logo após o envio.
+                </p>
+              </div>
+            </header>
 
-              {activeTab === 'media' && (
-                <div>
-                  <h3 className="text-2xl font-bold text-gray-900 mb-6">
-                    📸 Análise Detalhada de Mídias
-                  </h3>
-                  
-                  <div className="grid md:grid-cols-3 gap-6 mb-8">
-                    <div className="bg-gradient-to-br from-blue-500/20 to-blue-600/20 border-2 border-blue-500/30 rounded-2xl p-8 text-center transform hover:scale-105 transition-all">
-                      <div className="bg-blue-500/30 p-4 rounded-full w-fit mx-auto mb-4">
-                        <Image className="w-14 h-14 text-blue-300" />
-                      </div>
-                      <div className="text-5xl font-bold text-blue-300 mb-2">
-                        {finalResults.mediaAnalysis.photos}
-                      </div>
-                      <div className="text-blue-200 font-semibold text-lg">Fotos Suspeitas</div>
-                      <div className="text-blue-300/70 text-sm mt-2">Compartilhadas</div>
-                    </div>
-                    
-                    <div className="bg-gradient-to-br from-purple-500/20 to-purple-600/20 border-2 border-purple-500/30 rounded-2xl p-8 text-center transform hover:scale-105 transition-all">
-                      <div className="bg-purple-500/30 p-4 rounded-full w-fit mx-auto mb-4">
-                        <FileText className="w-14 h-14 text-purple-300" />
-                      </div>
-                      <div className="text-5xl font-bold text-purple-300 mb-2">
-                        {finalResults.mediaAnalysis.videos}
-                      </div>
-                      <div className="text-purple-200 font-semibold text-lg">Vídeos Suspeitos</div>
-                      <div className="text-purple-300/70 text-sm mt-2">Enviados/Recebidos</div>
-                    </div>
-                    
-                    <div className="bg-gradient-to-br from-red-500/20 to-red-600/20 border-2 border-red-500/30 rounded-2xl p-8 text-center transform hover:scale-105 transition-all">
-                      <div className="bg-red-500/30 p-4 rounded-full w-fit mx-auto mb-4">
-                        <Trash2 className="w-14 h-14 text-red-300" />
-                      </div>
-                      <div className="text-5xl font-bold text-red-300 mb-2">
-                        {finalResults.mediaAnalysis.deletedMedia}
-                      </div>
-                      <div className="text-red-200 font-semibold text-lg">Itens Deletados</div>
-                      <div className="text-red-300/70 text-sm mt-2">Recuperados</div>
-                    </div>
-                  </div>
-
-                  <div className="bg-gradient-to-r from-yellow-500/20 to-orange-500/20 border-2 border-yellow-500/30 rounded-2xl p-8">
-                    <div className="flex items-start mb-4">
-                      <Eye className="w-8 h-8 text-yellow-300 mr-3 mt-1" />
-                      <div>
-                        <h4 className="font-bold text-yellow-200 text-xl mb-3">
-                          Observações Importantes sobre Mídias
-                        </h4>
-                        <ul className="text-yellow-100 space-y-3 text-lg">
-                          <li className="flex items-start">
-                            <span className="text-yellow-300 mr-2">•</span>
-                            <span>Detectamos compartilhamento de conteúdo íntimo suspeito</span>
-                          </li>
-                          <li className="flex items-start">
-                            <span className="text-yellow-300 mr-2">•</span>
-                            <span>Várias mídias foram deletadas logo após o envio</span>
-                          </li>
-                          <li className="flex items-start">
-                            <span className="text-yellow-300 mr-2">•</span>
-                            <span>Padrão suspeito de envio durante horários de madrugada</span>
-                          </li>
-                          <li className="flex items-start">
-                            <span className="text-yellow-300 mr-2">•</span>
-                            <span>Uso frequente do modo "visualizar uma vez"</span>
-                          </li>
-                          <li className="flex items-start">
-                            <span className="text-yellow-300 mr-2">•</span>
-                            <span>Histórico de mídias enviadas para contatos não salvos</span>
-                          </li>
-                        </ul>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {activeTab === 'recommendations' && (
-                <div>
-                  <h3 className="text-4xl font-bold text-gray-900 mb-8">
-                    Recomendações Personalizadas
-                  </h3>
-                  <p className="text-gray-700 text-lg mb-8">
-                    Com base na análise, sugerimos os seguintes passos:
-                  </p>
-                  
-                  <div className="space-y-5">
-                    {finalResults.recommendations.map((recommendation: string, index: number) => (
-                      <div key={index} className="bg-gradient-to-r from-green-600/20 to-emerald-600/20 border-2 border-green-500/50 rounded-2xl p-7">
-                        <div className="flex items-start gap-4">
-                          <div className="bg-green-500/30 p-3 rounded-full flex-shrink-0">
-                            <CheckCircle className="w-7 h-7 text-green-200" />
-                          </div>
-                          <div className="flex-1">
-                            <h4 className="font-bold text-gray-900 text-xl mb-2">
-                              Recomendação {index + 1}
-                            </h4>
-                            <p className="text-gray-700 text-lg">{recommendation}</p>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-
-                    <div className="bg-gradient-to-r from-blue-600/20 to-cyan-600/20 border-2 border-blue-500/50 rounded-2xl p-8 mt-8">
-                      <h4 className="font-bold text-blue-200 text-2xl mb-5 flex items-center gap-3">
-                        💡 Próximos Passos Sugeridos
-                      </h4>
-                      <ul className="text-blue-100 space-y-4 text-lg">
-                        <li className="flex items-start gap-3">
-                          <span className="text-blue-300">•</span>
-                          <span>Documente todas as evidências encontradas neste relatório</span>
-                        </li>
-                        <li className="flex items-start gap-3">
-                          <span className="text-blue-300">•</span>
-                          <span>Considere uma conversa honesta e direta com a pessoa</span>
-                        </li>
-                        <li className="flex items-start gap-3">
-                          <span className="text-blue-300">•</span>
-                          <span>Busque aconselhamento profissional se necessário</span>
-                        </li>
-                        <li className="flex items-start gap-3">
-                          <span className="text-blue-300">•</span>
-                          <span>Tome decisões baseadas em fatos, não apenas suspeitas</span>
-                        </li>
-                      </ul>
-                    </div>
-                  </div>
-                </div>
-              )}
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="rounded-2xl border border-amber-400/30 bg-amber-500/10 p-6 text-center">
+                <p className="text-sm uppercase tracking-[0.2em] text-amber-100/70">Fotos</p>
+                <p className="mt-3 text-4xl font-bold text-white">{finalResults.mediaAnalysis.photos}</p>
+                <p className="text-xs text-amber-100/70">Compartilhadas durante o período</p>
+              </div>
+              <div className="rounded-2xl border border-indigo-400/30 bg-indigo-500/10 p-6 text-center">
+                <p className="text-sm uppercase tracking-[0.2em] text-indigo-100/70">Vídeos</p>
+                <p className="mt-3 text-4xl font-bold text-white">{finalResults.mediaAnalysis.videos}</p>
+                <p className="text-xs text-indigo-100/70">Conteúdos audiovisuais</p>
+              </div>
+              <div className="rounded-2xl border border-rose-400/40 bg-rose-500/10 p-6 text-center">
+                <p className="text-sm uppercase tracking-[0.2em] text-rose-100/70">Deletados</p>
+                <p className="mt-3 text-4xl font-bold text-white">{finalResults.mediaAnalysis.deletedMedia}</p>
+                <p className="text-xs text-rose-100/70">Itens removidos rapidamente</p>
+              </div>
             </div>
-          </div>
 
-          {/* Footer Actions */}
-          <div className="glass-card p-12 text-center">
-            <h3 className="text-4xl font-bold text-gray-900 mb-6">
-              Deseja Fazer Outra Análise?
-            </h3>
-            <p className="text-gray-700 mb-10 text-xl">
-              Analise outro número de WhatsApp e descubra a verdade.
-            </p>
-            <div className="flex justify-center">
-              <button 
+            <div className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-6">
+              <h4 className="flex items-center gap-2 text-base font-semibold text-white">
+                <Eye className="h-5 w-5 text-amber-100" /> Observações
+              </h4>
+              <ul className="mt-4 space-y-3 text-sm text-slate-300/80">
+                <li>• Horários de envio concentrados em períodos noturnos e madrugadas.</li>
+                <li>• Vários arquivos foram apagados poucos minutos após o envio.</li>
+                <li>• Parte das mídias foi compartilhada com contatos não salvos.</li>
+              </ul>
+            </div>
+          </section>
+
+          <section
+            ref={el => (sectionRefs.current.recommendations = el)}
+            data-section="recommendations"
+            className="rounded-3xl border border-white/10 bg-white/5 p-8 sm:p-10"
+          >
+            <header className="mb-6 flex items-start justify-between gap-6">
+              <div>
+                <div className="inline-flex items-center gap-2 rounded-full border border-emerald-400/30 bg-emerald-500/10 px-4 py-1 text-xs font-semibold text-emerald-100">
+                  <CheckCircle className="h-4 w-4" /> Estratégia sugerida
+                </div>
+                <h3 className="mt-4 text-3xl font-bold text-white">Próximos passos recomendados</h3>
+                <p className="mt-2 text-sm text-slate-300/80">
+                  Siga este roteiro para conduzir a situação com equilíbrio e segurança emocional.
+                </p>
+              </div>
+            </header>
+
+            {finalResults.recommendations.length === 0 ? (
+              <div className="rounded-2xl border border-white/10 bg-white/5 p-6 text-center text-sm text-slate-300">
+                Nenhuma recomendação adicional foi registrada. Revise os dados e defina o melhor caminho.
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {finalResults.recommendations.map((recommendation, index) => (
+                  <div
+                    key={index}
+                    className="rounded-2xl border border-emerald-400/40 bg-emerald-500/10 p-6"
+                  >
+                    <div className="flex items-start gap-4">
+                      <div className="flex h-10 w-10 items-center justify-center rounded-2xl border border-emerald-400/40 bg-emerald-500/20 text-emerald-100">
+                        <CheckCircle className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <p className="text-sm uppercase tracking-[0.2em] text-emerald-200/70">Passo {index + 1}</p>
+                        <p className="mt-2 text-base font-semibold text-white">{recommendation}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="mt-8 rounded-2xl border border-white/10 bg-white/5 p-6">
+              <h4 className="flex items-center gap-2 text-base font-semibold text-white">
+                <ArrowRight className="h-5 w-5 text-emerald-100" /> Tenha um plano claro
+              </h4>
+              <p className="mt-3 text-sm text-slate-300/80">
+                Reúna as evidências exportadas, defina o momento apropriado para conversar e estabeleça limites saudáveis. Caso necessário, procure apoio psicológico ou jurídico especializado.
+              </p>
+            </div>
+          </section>
+
+          <section className="rounded-3xl border border-white/10 bg-gradient-to-br from-emerald-500/20 via-emerald-500/10 to-transparent p-8 sm:p-10">
+            <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <p className="inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-4 py-1 text-xs uppercase tracking-[0.3em] text-white/80">
+                  Próxima análise
+                </p>
+                <h3 className="mt-4 text-3xl font-bold text-white">Quer analisar outro número?</h3>
+                <p className="mt-2 max-w-2xl text-sm text-white/80">
+                  Inicie uma nova análise para continuar investigando com precisão e confidencialidade total.
+                </p>
+              </div>
+              <button
                 onClick={handleNewAnalysis}
-                className="px-12 py-6 bg-gradient-to-r from-green-600 via-green-700 to-emerald-700 rounded-2xl font-extrabold text-xl hover:from-green-700 hover:via-green-800 hover:to-emerald-800 transition-all duration-300 shadow-2xl shadow-green-600/60 border-3 border-green-400 transform hover:scale-110 flex items-center gap-4"
+                className="group inline-flex items-center gap-3 rounded-2xl border border-white/20 bg-white/10 px-6 py-4 text-sm font-semibold text-white transition hover:border-white/40 hover:bg-white/20"
               >
-                <AlertTriangle className="w-8 h-8 text-white" />
-                <span className="text-white font-extrabold">Nova Análise Completa</span>
+                <Shield className="h-5 w-5" /> Nova análise
+                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
               </button>
             </div>
-          </div>
-        </div>
+          </section>
+        </main>
       </div>
     </div>
   )
