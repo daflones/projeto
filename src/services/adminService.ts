@@ -13,6 +13,63 @@ export interface AdminUser {
   last_login?: string
 }
 
+export async function deleteLeadsByIds(leadIds: string[]): Promise<boolean> {
+  if (!leadIds.length) return true
+
+  try {
+    const { error } = await supabase
+      .from('leads')
+      .delete()
+      .in('id', leadIds)
+
+    if (error) {
+      return false
+    }
+
+    return true
+  } catch (error) {
+    return false
+  }
+}
+
+export async function deleteCardPaymentsByIds(paymentIds: string[]): Promise<boolean> {
+  if (!paymentIds.length) return true
+
+  try {
+    const { error } = await supabase
+      .from('card_attempts')
+      .delete()
+      .in('id', paymentIds)
+
+    if (error) {
+      return false
+    }
+
+    return true
+  } catch (error) {
+    return false
+  }
+}
+
+export async function deletePixPaymentsByIds(paymentIds: string[]): Promise<boolean> {
+  if (!paymentIds.length) return true
+
+  try {
+    const { error } = await supabase
+      .from('pix_payments')
+      .delete()
+      .in('id', paymentIds)
+
+    if (error) {
+      return false
+    }
+
+    return true
+  } catch (error) {
+    return false
+  }
+}
+
 export interface SystemSetting {
   id: string
   setting_key: string

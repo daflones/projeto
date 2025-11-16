@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { Check, X, Loader2, ChevronLeft, ChevronRight } from 'lucide-react'
-import { updateLeadPaymentStatus } from '../../services/adminService'
+import { Check, X, Loader2, ChevronLeft, ChevronRight, Trash2 } from 'lucide-react'
+import { updateLeadPaymentStatus, deleteLeadsByIds } from '../../services/adminService'
 
 interface Lead {
   id: string
@@ -21,6 +21,8 @@ interface LeadsTableProps {
 const LeadsTable = ({ leads, onUpdate }: LeadsTableProps) => {
   const [updating, setUpdating] = useState<string | null>(null)
   const [currentPage, setCurrentPage] = useState(1)
+  const [selectedRows, setSelectedRows] = useState<string[]>([])
+  const [isDeleting, setIsDeleting] = useState(false)
   const itemsPerPage = 10
 
   // Paginação
@@ -28,6 +30,45 @@ const LeadsTable = ({ leads, onUpdate }: LeadsTableProps) => {
   const startIndex = (currentPage - 1) * itemsPerPage
   const endIndex = startIndex + itemsPerPage
   const currentLeads = leads.slice(startIndex, endIndex)
+
+  const getRowKey = (lead: Lead) => lead.id
+  const isRowSelected = (lead: Lead) => selectedRows.includes(getRowKey(lead))
+  const areAllSelected = currentLeads.length > 0 && currentLeads.every(isRowSelected)
+
+  const toggleSelectAll = () => {
+    if (areAllSelected) {
+      setSelectedRows([])
+    } else {
+      setSelectedRows(prev => {
+        const currentKeys = currentLeads.map(getRowKey)
+        const newSelection = new Set(prev)
+        currentKeys.forEach(key => newSelection.add(key))
+        return Array.from(newSelection)
+      })
+    }
+  }
+
+  const toggleRowSelection = (lead: Lead) => {
+    const key = getRowKey(lead)
+    setSelectedRows(prev => prev.includes(key) ? prev.filter(item => item !== key) : [...prev, key])
+  }
+
+  const handleDelete = async (keys: string[]) => {
+    if (!keys.length) return
+    const confirmDelete = window.confirm('Tem certeza que deseja excluir os leads selecionados?')
+    if (!confirmDelete) return
+
+    setIsDeleting(true)
+    try {
+      const success = await deleteLeadsByIds(keys)
+      if (success) {
+        setSelectedRows(prev => prev.filter(key => !keys.includes(key)))
+        onUpdate()
+      }
+    } finally {
+      setIsDeleting(false)
+    }
+  }
 
   const handleTogglePayment = async (paymentId: string, currentStatus: boolean) => {
     setUpdating(paymentId)
@@ -43,10 +84,32 @@ const LeadsTable = ({ leads, onUpdate }: LeadsTableProps) => {
 
   return (
     <div className="space-y-4">
+      {selectedRows.length > 0 && (
+        <div className="flex items-center justify-between rounded-2xl border border-rose-100 bg-rose-50/70 px-4 py-3 text-sm text-rose-500">
+          <span>{selectedRows.length} lead(s) selecionado(s)</span>
+          <button
+            onClick={() => handleDelete(selectedRows)}
+            disabled={isDeleting}
+            className="inline-flex items-center gap-2 rounded-full bg-rose-500 px-4 py-2 font-semibold text-white transition-colors hover:bg-rose-600 disabled:cursor-not-allowed disabled:opacity-70"
+          >
+            {isDeleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+            Excluir selecionados
+          </button>
+        </div>
+      )}
+
       <div className="overflow-x-auto">
         <table className="w-full">
           <thead>
             <tr className="border-b border-rose-100">
+              <th className="w-12 py-4 px-4 text-center">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 rounded border-slate-300 text-rose-500 focus:ring-rose-500"
+                  checked={areAllSelected}
+                  onChange={toggleSelectAll}
+                />
+              </th>
               <th className="py-4 px-4 text-left text-sm font-semibold text-slate-400">WhatsApp</th>
               <th className="py-4 px-4 text-left text-sm font-semibold text-slate-400">Nome</th>
               <th className="py-4 px-4 text-left text-sm font-semibold text-slate-400">Data</th>
@@ -56,11 +119,19 @@ const LeadsTable = ({ leads, onUpdate }: LeadsTableProps) => {
             </tr>
           </thead>
           <tbody>
-            {currentLeads.map((lead, index) => (
+            {currentLeads.map(lead => (
               <tr
-                key={index}
+                key={lead.id}
                 className="border-b border-rose-50/70 transition-colors hover:bg-rose-50/60"
               >
+                <td className="py-4 px-4 text-center">
+                  <input
+                    type="checkbox"
+                    className="h-4 w-4 rounded border-slate-300 text-rose-500 focus:ring-rose-500"
+                    checked={isRowSelected(lead)}
+                    onChange={() => toggleRowSelection(lead)}
+                  />
+                </td>
                 <td className="py-4 px-4">
                   <span className="rounded-lg bg-rose-50 px-3 py-1 font-mono text-sm font-medium text-rose-500">
                     {lead.whatsapp}
@@ -102,27 +173,37 @@ const LeadsTable = ({ leads, onUpdate }: LeadsTableProps) => {
                   )}
                 </td>
                 <td className="py-4 px-4 text-center">
-                  {lead.payment_status !== 'no_payment' && lead.payment_id ? (
+                  <div className="flex flex-wrap items-center justify-center gap-2">
+                    {lead.payment_status !== 'no_payment' && lead.payment_id ? (
+                      <button
+                        onClick={() => handleTogglePayment(lead.payment_id, lead.payment_confirmed || false)}
+                        disabled={updating === lead.payment_id}
+                        className={`rounded-full px-4 py-2 text-xs font-semibold transition-colors ${
+                          lead.payment_confirmed
+                            ? 'bg-rose-50 text-rose-500 hover:bg-rose-100'
+                            : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
+                        } disabled:cursor-not-allowed disabled:opacity-60`}
+                      >
+                        {updating === lead.payment_id ? (
+                          <Loader2 className="mx-auto h-4 w-4 animate-spin" />
+                        ) : lead.payment_confirmed ? (
+                          'Marcar Pendente'
+                        ) : (
+                          'Marcar Pago'
+                        )}
+                      </button>
+                    ) : (
+                      <span className="text-xs text-slate-300">-</span>
+                    )}
                     <button
-                      onClick={() => handleTogglePayment(lead.payment_id, lead.payment_confirmed || false)}
-                      disabled={updating === lead.payment_id}
-                      className={`rounded-full px-4 py-2 text-xs font-semibold transition-colors ${
-                        lead.payment_confirmed
-                          ? 'bg-rose-50 text-rose-500 hover:bg-rose-100'
-                          : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
-                      } disabled:cursor-not-allowed disabled:opacity-60`}
+                      onClick={() => handleDelete([getRowKey(lead)])}
+                      disabled={isDeleting}
+                      className="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1 text-xs font-semibold text-rose-500 shadow-sm ring-1 ring-inset ring-rose-100 transition-colors hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      {updating === lead.payment_id ? (
-                        <Loader2 className="mx-auto h-4 w-4 animate-spin" />
-                      ) : lead.payment_confirmed ? (
-                        'Marcar Pendente'
-                      ) : (
-                        'Marcar Pago'
-                      )}
+                      <Trash2 className="h-4 w-4" />
+                      Excluir
                     </button>
-                  ) : (
-                    <span className="text-xs text-slate-300">-</span>
-                  )}
+                  </div>
                 </td>
               </tr>
             ))}

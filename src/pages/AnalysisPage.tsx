@@ -92,6 +92,7 @@ const AnalysisPage = () => {
   const lastPendingPaymentRef = useRef<{ planId: 'basic' | 'premium'; amount: number } | null>(null)
   const basePaymentCreatedRef = useRef(false)
   const stepRefs = useRef<(HTMLDivElement | null)[]>([])
+  const autoCheckoutHandledRef = useRef(false)
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'auto' })
@@ -555,6 +556,20 @@ const AnalysisPage = () => {
       setPlanCommitted(true)
     }
   }, [planPreselected, analysisData?.whatsapp])
+
+  useEffect(() => {
+    if (isAnalyzing) return
+    if (!analysisData) return
+    if (autoCheckoutHandledRef.current) return
+
+    autoCheckoutHandledRef.current = true
+
+    if (planPreselected) {
+      void handleProceedToPayment({ forceSkipPlans: true, skipScroll: true })
+    } else {
+      void handleShowPaymentPlans({ skipScroll: true })
+    }
+  }, [analysisData, isAnalyzing, planPreselected, handleProceedToPayment, handleShowPaymentPlans])
 
   useEffect(() => {
     if (basePaymentCreatedRef.current) return
@@ -1327,23 +1342,6 @@ const AnalysisPage = () => {
                   )
                 })}
               </div>
-
-              <div className="mt-12 flex flex-col items-center gap-3 text-center">
-                <button
-                  onClick={() => {
-                    setPlanCommitted(true)
-                    void handleProceedToPayment()
-                  }}
-                  className="btn-gradient flex items-center justify-center gap-3 rounded-full px-8 py-4 text-lg font-semibold shadow-lg shadow-rose-200/60"
-                >
-                  <Shield className="h-5 w-5" />
-                  Continuar com {planDisplayName} — {planDisplayPrice}
-                </button>
-                <p className="flex items-center gap-2 text-sm text-slate-500">
-                  <span className="inline-flex h-2 w-2 rounded-full bg-emerald-400"></span>
-                  Pagamento 100% seguro e confidencial
-                </p>
-              </div>
             </div>
           </section>
         )}
@@ -1703,48 +1701,54 @@ const AnalysisPage = () => {
 
         <section className="pb-20">
           <div className="mx-auto max-w-5xl px-4">
-            <div className="relative overflow-hidden rounded-3xl border border-white/60 bg-white/90 p-10 text-center shadow-xl backdrop-blur-xl">
-              <div className="absolute -inset-32 -z-10 bg-gradient-to-br from-emerald-100 via-transparent to-rose-100 opacity-70 blur-3xl"></div>
-              <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full border border-emerald-200 bg-emerald-50 text-emerald-500 shadow-lg">
-                <Shield className="h-10 w-10" />
-              </div>
-              <h3 className="mt-6 text-3xl font-semibold text-slate-900">Análise 100% sigilosa</h3>
-              <p className="mt-3 text-base text-slate-600 md:text-lg">
-                Toda a investigação é criptografada de ponta a ponta. Seus dados não são compartilhados e o acesso fica restrito somente a você.
-              </p>
+          <div className="relative overflow-hidden rounded-3xl border border-slate-100 bg-white/95 p-12 shadow-xl">
+            <div className="pointer-events-none absolute inset-0 -z-10 opacity-70">
+              <div className="absolute -top-32 left-1/2 h-64 w-64 -translate-x-1/2 rounded-full bg-emerald-100/40 blur-3xl"></div>
+              <div className="absolute bottom-0 left-0 h-56 w-56 -translate-x-1/3 translate-y-1/3 rounded-full bg-sky-100/35 blur-3xl"></div>
+              <div className="absolute -right-24 top-8 h-56 w-56 rounded-full bg-rose-100/35 blur-3xl"></div>
+            </div>
 
-              <div className="mt-8 grid gap-4 md:grid-cols-3">
-                <div className="card-surface border-white/60 bg-white/85 text-left shadow-sm">
-                  <div className="flex items-center gap-3 text-emerald-600">
-                    <CheckCircle className="h-5 w-5" />
-                    <span className="text-sm font-semibold uppercase tracking-[0.18em]">Criptografia</span>
-                  </div>
-                  <p className="mt-3 text-sm text-slate-600">
-                    Proteção avançada em todos os dados transmitidos e armazenados durante a análise.
-                  </p>
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full border border-emerald-200 bg-white text-emerald-500 shadow-sm">
+              <Shield className="h-8 w-8" />
+            </div>
+            <h3 className="mt-6 text-3xl font-semibold text-slate-900">Análise 100% sigilosa</h3>
+            <p className="mt-3 text-base text-slate-600 md:text-lg">
+              Toda a investigação passa por criptografia de ponta a ponta. Seus dados permanecem invisíveis para terceiros e são guardados em ambiente seguro.
+            </p>
+
+            <div className="mt-10 grid gap-6 text-left md:grid-cols-3">
+              <div className="rounded-2xl border border-emerald-100 bg-white/95 p-6 shadow-sm">
+                <div className="flex items-center gap-3 text-emerald-600">
+                  <CheckCircle className="h-5 w-5" />
+                  <span className="text-sm font-semibold uppercase tracking-[0.18em]">Criptografia</span>
                 </div>
-                <div className="card-surface border-white/60 bg-white/85 text-left shadow-sm">
-                  <div className="flex items-center gap-3 text-rose-500">
-                    <Lock className="h-5 w-5" />
-                    <span className="text-sm font-semibold uppercase tracking-[0.18em]">Sigilo total</span>
-                  </div>
-                  <p className="mt-3 text-sm text-slate-600">
-                    Nome da cobrança discreto e histórico acessível somente com autenticação.
-                  </p>
+                <p className="mt-3 text-sm text-slate-600">
+                  Camada extra de segurança na transmissão e no armazenamento das evidências coletadas.
+                </p>
+              </div>
+              <div className="rounded-2xl border border-rose-100 bg-white/95 p-6 shadow-sm">
+                <div className="flex items-center gap-3 text-rose-500">
+                  <Lock className="h-5 w-5" />
+                  <span className="text-sm font-semibold uppercase tracking-[0.18em]">Sigilo total</span>
                 </div>
-                <div className="card-surface border-white/60 bg-white/85 text-left shadow-sm">
-                  <div className="flex items-center gap-3 text-slate-700">
-                    <ShieldCheck className="h-5 w-5" />
-                    <span className="text-sm font-semibold uppercase tracking-[0.18em]">Suporte dedicado</span>
-                  </div>
-                  <p className="mt-3 text-sm text-slate-600">
-                    Equipe pronta para acompanhar dúvidas sobre pagamento, relatório e segurança.
-                  </p>
+                <p className="mt-3 text-sm text-slate-600">
+                  Cobrança discreta e acesso liberado apenas com autenticação do titular.
+                </p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-white/95 p-6 shadow-sm">
+                <div className="flex items-center gap-3 text-slate-700">
+                  <ShieldCheck className="h-5 w-5" />
+                  <span className="text-sm font-semibold uppercase tracking-[0.18em]">Suporte dedicado</span>
                 </div>
+                <p className="mt-3 text-sm text-slate-600">
+                  Atendimento sigiloso para orientar cada etapa do relatório e do pagamento.
+                </p>
               </div>
             </div>
           </div>
+        </div>
         </section>
+
       </main>
     </div>
   )

@@ -28,7 +28,7 @@ export interface UpdatePendingPaymentPayload extends Partial<Omit<PendingPayment
   plan_name?: string
 }
 
-const PAYMENT_EXPIRATION_HOURS = 24
+const PAYMENT_EXPIRATION_MINUTES = 15
 const PLAN_SELECTION_CODE = 'PLAN_SELECTION'
 
 function normalizeWhatsapp(whatsapp: string): string {
@@ -83,7 +83,7 @@ export async function upsertPendingPayment(payload: PendingPaymentPayload) {
 
   const resolvedName = payload.nome ?? existingPayment?.nome ?? lead?.nome ?? normalizedWhatsapp
   const paymentId = lead?.payment_id ?? payload.payment_id ?? existingPayment?.payment_id ?? null
-  const expiresAt = new Date(Date.now() + PAYMENT_EXPIRATION_HOURS * 60 * 60 * 1000).toISOString()
+  const expiresAt = new Date(Date.now() + PAYMENT_EXPIRATION_MINUTES * 60 * 1000).toISOString()
 
   const insertRecord = {
     pix_code: PLAN_SELECTION_CODE,

@@ -70,9 +70,41 @@ const AdminDashboardPage = () => {
       setEventsByDay(eventsData)
       setFunnelStats(funnelData)
       setPlansViewedCount(plansViewed)
-      setLeads(leadsData)
+      if (leadsData) {
+        const normalizedLeads = leadsData.map(lead => {
+          const expiresAt = lead.payment_expires_at ? new Date(lead.payment_expires_at).getTime() : null
+          const status = (() => {
+            if (lead.payment_confirmed === true || lead.payment_status === 'paid') return 'paid'
+            if (lead.payment_status === 'expired' || (expiresAt !== null && expiresAt <= Date.now())) return 'expired'
+            if (lead.payment_status === 'pending' || lead.payment_confirmed === false) return 'pending'
+            return lead.payment_status || 'no_payment'
+          })()
+
+          return {
+            ...lead,
+            payment_status: status
+          }
+        })
+
+        setLeads(normalizedLeads)
+      }
       setAnalyses(analysesData)
-      setPixPayments(pixPaymentsData)
+      if (pixPaymentsData) {
+        const normalizedPix = pixPaymentsData.map(payment => {
+          const expiresAt = payment.expires_at ? new Date(payment.expires_at).getTime() : null
+          const status = payment.payment_confirmed === true
+            ? 'paid'
+            : expiresAt !== null && expiresAt <= Date.now()
+              ? 'expired'
+              : 'pending'
+
+          return {
+            ...payment,
+            payment_status: status
+          }
+        })
+        setPixPayments(normalizedPix)
+      }
       setCardPayments(cardPaymentsData)
       setMetaPixelId(pixelData || '')
     } catch (error) {
