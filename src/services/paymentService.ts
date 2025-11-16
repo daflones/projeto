@@ -110,7 +110,9 @@ export async function upsertPendingPayment(payload: PendingPaymentPayload) {
       nome: resolvedName,
       payment_confirmed: false,
       expires_at: expiresAt,
-      payment_id: paymentId
+      payment_id: paymentId,
+      plan_id: payload.plan_id,
+      plan_name: payload.plan_name
     }
 
     try {

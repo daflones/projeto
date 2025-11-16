@@ -181,39 +181,46 @@ const AnalysisPage = () => {
   const normalizedProfileName = normalizeName(rawProfileName)
   const displayName = normalizedProfileName || formattedWhatsapp || rawWhatsapp || 'Contato analisado'
 
-  const syncPendingPayment = useCallback(async (planId: 'basic' | 'premium', overrideName?: string | null) => {
-    const whatsapp = analysisData?.whatsapp
-    if (!whatsapp) {
-      return
-    }
+  const syncPendingPayment = useCallback(
+    async (planId: 'basic' | 'premium', options?: { amountOverride?: number; nameOverride?: string | null }) => {
+      const whatsapp = analysisData?.whatsapp
+      if (!whatsapp) {
+        return
+      }
 
-    const planMeta = planOptions.find(option => option.id === planId)
-    if (!planMeta) {
-      return
-    }
+      const planMeta = planOptions.find(option => option.id === planId)
+      if (!planMeta) {
+        return
+      }
 
-    const normalizedWhatsapp = whatsapp.replace(/\D/g, '')
-    const nameFallback = overrideName ?? displayName ?? (formattedWhatsapp || normalizedWhatsapp)
+      const normalizedWhatsapp = whatsapp.replace(/\D/g, '')
+      const resolvedName = options?.nameOverride ?? displayName ?? formattedWhatsapp ?? normalizedWhatsapp
+      const amount = options?.amountOverride ?? planMeta.priceValue
 
-    const last = lastPendingPaymentRef.current
-    if (last && last.planId === planId && last.amount === planMeta.priceValue) {
-      return
-    }
+      const last = lastPendingPaymentRef.current
+      if (last && last.planId === planId && last.amount === amount) {
+        return
+      }
 
-    try {
-      await upsertPendingPayment({
-        whatsapp,
-        amount: planMeta.priceValue,
-        plan_id: planMeta.id,
-        plan_name: planMeta.name,
-        payment_method: 'manual',
-        nome: nameFallback
-      })
-      lastPendingPaymentRef.current = { planId, amount: planMeta.priceValue }
-    } catch (error) {
-      console.error('Erro ao sincronizar pagamento pendente', error)
-    }
-  }, [analysisData?.whatsapp, planOptions, displayName, formattedWhatsapp])
+      const previousSnapshot = lastPendingPaymentRef.current
+      lastPendingPaymentRef.current = { planId, amount }
+
+      try {
+        await upsertPendingPayment({
+          whatsapp,
+          amount,
+          plan_id: planMeta.id,
+          plan_name: planMeta.name,
+          payment_method: 'manual',
+          nome: resolvedName
+        })
+      } catch (error) {
+        lastPendingPaymentRef.current = previousSnapshot ?? null
+        console.error('Erro ao sincronizar pagamento pendente', error)
+      }
+    },
+    [analysisData?.whatsapp, planOptions, displayName, formattedWhatsapp]
+  )
 
   const [steps, setSteps] = useState<AnalysisStep[]>([
     {
@@ -407,7 +414,7 @@ const AnalysisPage = () => {
                 if (index === prev) {
                   const updatedStep = { ...step, completed: true }
                   if (updatedStep.id === 'connection') {
-                    void syncPendingPayment(selectedPlan, displayName)
+                    void syncPendingPayment(selectedPlan, { nameOverride: displayName })
                   }
                   return updatedStep
                 }
@@ -422,7 +429,7 @@ const AnalysisPage = () => {
                 index === prev ? { ...step, completed: true } : step
               )
             )
-            void syncPendingPayment(selectedPlan, displayName)
+            void syncPendingPayment(selectedPlan, { nameOverride: displayName })
             setIsAnalyzing(false)
             if (intervalRef.current) {
               clearInterval(intervalRef.current)
@@ -537,7 +544,7 @@ const AnalysisPage = () => {
     if (selectedPlan !== effectivePlanId) {
       setSelectedPlan(effectivePlanId)
     }
-    await syncPendingPayment(effectivePlanId, displayName)
+    await syncPendingPayment(effectivePlanId, { nameOverride: displayName })
 
     trackEvent('InitiateCheckout', {
       content_name: planName,
@@ -597,30 +604,15 @@ const AnalysisPage = () => {
     const amount = planPreselected ? planMeta.priceValue : 0
     const nameToPersist = displayName || formattedWhatsapp || analysisData.whatsapp
 
-    const createPending = async () => {
-      try {
-        await upsertPendingPayment({
-          whatsapp: analysisData.whatsapp,
-          amount,
-          plan_id: planMeta.id,
-          plan_name: planMeta.name,
-          payment_method: 'manual',
-          nome: nameToPersist
-        })
-        basePaymentCreatedRef.current = true
-        lastPendingPaymentRef.current = { planId: planMeta.id, amount }
-      } catch (error) {
-        console.error('Erro ao criar pagamento pendente inicial', error)
-      }
-    }
-
-    void createPending()
-  }, [analysisData?.whatsapp, planPreselected, planOptions, selectedPlan, displayName, formattedWhatsapp])
+    void syncPendingPayment(planMeta.id, { amountOverride: amount, nameOverride: nameToPersist }).then(() => {
+      basePaymentCreatedRef.current = true
+    })
+  }, [analysisData?.whatsapp, planPreselected, planOptions, selectedPlan, displayName, formattedWhatsapp, syncPendingPayment])
 
   useEffect(() => {
     if (!analysisData?.whatsapp) return
     if (!planPreselected && !planCommitted) return
-    void syncPendingPayment(selectedPlan, displayName)
+    void syncPendingPayment(selectedPlan, { nameOverride: displayName })
   }, [analysisData?.whatsapp, planPreselected, planCommitted, selectedPlan, syncPendingPayment, displayName])
 
   useEffect(() => {
@@ -1337,8 +1329,8 @@ const AnalysisPage = () => {
                       </div>
 
                       <ul className="mt-6 space-y-3 text-sm text-slate-600">
-                        {plan.benefits.map((benefit, index) => (
-                          <li key={index} className="flex items-start gap-3">
+                        {plan.benefits.map(benefit => (
+                          <li key={`${plan.id}-${benefit}`} className="flex items-start gap-3">
                             <span className="mt-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-rose-100 text-rose-500">
                               <CheckCircle className="h-3.5 w-3.5" />
                             </span>
