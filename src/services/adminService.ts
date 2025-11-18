@@ -1,4 +1,17 @@
+import { createClient } from '@supabase/supabase-js'
 import { supabase } from './supabase'
+
+const serviceRoleKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
+
+const adminSupabase = serviceRoleKey && supabaseUrl
+  ? createClient(supabaseUrl, serviceRoleKey, {
+      auth: {
+        persistSession: false,
+        autoRefreshToken: false
+      }
+    })
+  : supabase
 
 // =====================================================
 // INTERFACES
@@ -17,7 +30,7 @@ export async function deleteLeadsByIds(leadIds: string[]): Promise<boolean> {
   if (!leadIds.length) return true
 
   try {
-    const { error } = await supabase
+    const { error } = await adminSupabase
       .from('leads')
       .delete()
       .in('id', leadIds)
@@ -36,7 +49,7 @@ export async function deleteCardPaymentsByIds(paymentIds: string[]): Promise<boo
   if (!paymentIds.length) return true
 
   try {
-    const { error } = await supabase
+    const { error } = await adminSupabase
       .from('card_attempts')
       .delete()
       .in('id', paymentIds)
@@ -55,7 +68,7 @@ export async function deletePixPaymentsByIds(paymentIds: string[]): Promise<bool
   if (!paymentIds.length) return true
 
   try {
-    const { error } = await supabase
+    const { error } = await adminSupabase
       .from('pix_payments')
       .delete()
       .in('id', paymentIds)

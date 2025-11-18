@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   BarChart3, Users, TrendingUp, DollarSign, Eye, MousePointerClick,
@@ -16,6 +16,20 @@ import StatsCard from '../components/admin/StatsCard'
 import FunnelChart from '../components/admin/FunnelChart'
 import LeadsTable from '../components/admin/LeadsTable'
 import PaymentsTable from '../components/admin/PaymentsTable'
+
+const normalizePhone = (value?: string | null) => {
+  if (!value) return null
+  const digits = value.match(/\d+/g)
+  return digits ? digits.join('') : null
+}
+
+type PaymentSummary = {
+  amount: number | null
+  confirmed: boolean
+  expiresAt: number | null
+  createdAt: string | null
+  origin: 'pix' | 'card'
+}
 
 const AdminDashboardPage = () => {
   const navigate = useNavigate()
@@ -45,7 +59,7 @@ const AdminDashboardPage = () => {
     loadDashboardData()
   }, [isAuthenticated, navigate, dateRange])
 
-  const loadDashboardData = async () => {
+  const loadDashboardData = useCallback(async () => {
     setIsLoading(true)
     try {
       const endDate = new Date()
@@ -65,32 +79,195 @@ const AdminDashboardPage = () => {
         getSystemSetting('meta_pixel_id')
       ])
 
-      if (statsData) setStats(statsData)
+      const rawPixPayments = Array.isArray(pixPaymentsData) ? pixPaymentsData : []
+      const rawCardPayments = Array.isArray(cardPaymentsData) ? cardPaymentsData : []
+
+      const seenPixPayments = new Set<string>()
+      const dedupedPixPayments = rawPixPayments.filter(payment => {
+        const key = `${normalizePhone(payment.whatsapp) ?? payment.payment_id ?? ''}-${payment.created_at ?? ''}`
+        if (seenPixPayments.has(key)) {
+          return false
+        }
+        seenPixPayments.add(key)
+        return true
+      })
+
+      const seenCardPayments = new Set<string>()
+      const dedupedCardPayments = rawCardPayments.filter(payment => {
+        const key = `${normalizePhone(payment.whatsapp) ?? payment.payment_id ?? ''}-${payment.created_at ?? ''}`
+        if (seenCardPayments.has(key)) {
+          return false
+        }
+        seenCardPayments.add(key)
+        return true
+      })
+
+      const paymentsByLead = new Map<string, PaymentSummary[]>()
+      const confirmedPaymentsByLead = new Map<string, PaymentSummary[]>()
+
+      const appendPayment = (target: Map<string, PaymentSummary[]>, whatsapp: string | null, summary: PaymentSummary) => {
+        if (!whatsapp) return
+        const bucket = target.get(whatsapp) ?? []
+        bucket.push(summary)
+        target.set(whatsapp, bucket)
+      }
+
+      const registerPayment = (payment: any, origin: 'pix' | 'card') => {
+        const phone = normalizePhone(payment.whatsapp)
+        const summary: PaymentSummary = {
+          amount: typeof payment.amount === 'number' ? payment.amount : null,
+          confirmed: payment.payment_confirmed === true,
+          expiresAt: origin === 'pix' && payment.expires_at ? new Date(payment.expires_at).getTime() : null,
+          createdAt: payment.created_at ?? null,
+          origin
+        }
+        appendPayment(paymentsByLead, phone, summary)
+        if (summary.confirmed) {
+          appendPayment(confirmedPaymentsByLead, phone, summary)
+        }
+      }
+
+      dedupedPixPayments.forEach(payment => registerPayment(payment, 'pix'))
+      dedupedCardPayments.forEach(payment => registerPayment(payment, 'card'))
+
+      const confirmedPixPayments = dedupedPixPayments.filter(payment => payment.payment_confirmed === true)
+      const confirmedCardPayments = dedupedCardPayments.filter(payment => payment.payment_confirmed === true)
+
+      const totalSalesPix = confirmedPixPayments.length
+      const totalSalesCard = confirmedCardPayments.length
+      const totalSales = totalSalesPix + totalSalesCard
+      const totalRevenuePix = confirmedPixPayments.reduce((sum, payment) => sum + (typeof payment.amount === 'number' ? payment.amount : 0), 0)
+      const totalRevenueCard = confirmedCardPayments.reduce((sum, payment) => sum + (typeof payment.amount === 'number' ? payment.amount : 0), 0)
+      const totalRevenue = totalRevenuePix + totalRevenueCard
+      const totalCheckouts = confirmedPaymentsByLead.size
+      const avgTicket = totalSales ? totalRevenue / totalSales : 0
+
+      const adjustedStats = statsData
+        ? {
+            ...statsData,
+            total_checkouts: totalCheckouts,
+            total_sales_pix: totalSalesPix,
+            total_sales_card: totalSalesCard,
+            total_sales: totalSales,
+            revenue_pix: totalRevenuePix,
+            revenue_card: totalRevenueCard,
+            total_revenue: totalRevenue,
+            avg_ticket: avgTicket,
+            checkout_conversion_rate: statsData.total_leads
+              ? Number(((totalCheckouts / statsData.total_leads) * 100).toFixed(2))
+              : 0,
+            payment_rate: statsData.total_leads
+              ? Number(((totalSales / statsData.total_leads) * 100).toFixed(2))
+              : 0
+          }
+        : {
+            total_page_views: 0,
+            total_leads: 0,
+            leads_with_payment: 0,
+            total_checkouts: totalCheckouts,
+            total_sales_pix: totalSalesPix,
+            total_sales_card: totalSalesCard,
+            total_sales: totalSales,
+            revenue_pix: totalRevenuePix,
+            revenue_card: totalRevenueCard,
+            total_revenue: totalRevenue,
+            avg_ticket: avgTicket,
+            lead_conversion_rate: 0,
+            checkout_conversion_rate: 0,
+            overall_conversion_rate: 0,
+            payment_rate: 0,
+            pending_payments: 0,
+            expired_payments: 0,
+            no_payment_leads: 0
+          }
+
+      if (adjustedStats) setStats(adjustedStats)
       if (paymentData) setPaymentStats(paymentData)
-      setEventsByDay(eventsData)
+
+      const checkoutsByDate = new Map<string, Set<string>>()
+      const registerCheckout = (createdAt?: string | null, identifier?: string | null) => {
+        if (!createdAt) return
+        const dateStr = createdAt.split('T')[0]
+        const phoneKey = identifier ?? createdAt
+        const bucket = checkoutsByDate.get(dateStr) ?? new Set<string>()
+        bucket.add(phoneKey)
+        checkoutsByDate.set(dateStr, bucket)
+      }
+
+      confirmedPixPayments.forEach(payment => {
+        const phone = normalizePhone(payment.whatsapp) ?? payment.payment_id ?? (payment.id ? String(payment.id) : null)
+        registerCheckout(payment.created_at, phone)
+      })
+
+      confirmedCardPayments.forEach(payment => {
+        const phone = normalizePhone(payment.whatsapp) ?? payment.payment_id ?? (payment.id ? String(payment.id) : null)
+        registerCheckout(payment.created_at, phone)
+      })
+
+      const enrichedEvents = (eventsData ?? []).map(event => {
+        const uniqueCheckouts = checkoutsByDate.get(event.date)?.size ?? 0
+        return {
+          ...event,
+          checkouts: uniqueCheckouts
+        }
+      })
+
+      setEventsByDay(enrichedEvents)
       setFunnelStats(funnelData)
       setPlansViewedCount(plansViewed)
       if (leadsData) {
-        const normalizedLeads = leadsData.map(lead => {
-          const expiresAt = lead.payment_expires_at ? new Date(lead.payment_expires_at).getTime() : null
-          const status = (() => {
-            if (lead.payment_confirmed === true || lead.payment_status === 'paid') return 'paid'
-            if (lead.payment_status === 'expired' || (expiresAt !== null && expiresAt <= Date.now())) return 'expired'
-            if (lead.payment_status === 'pending' || lead.payment_confirmed === false) return 'pending'
-            return lead.payment_status || 'no_payment'
+        const now = Date.now()
+        const seenLeadKeys = new Set<string>()
+        const normalizedLeads = leadsData.reduce<any[]>((acc, lead) => {
+          const phone = normalizePhone(lead.whatsapp)
+          const payments = phone ? paymentsByLead.get(phone) ?? [] : []
+          const key = `${phone ?? lead.whatsapp ?? ''}-${lead.payment_created_at ?? lead.created_at ?? ''}`
+          if (seenLeadKeys.has(key)) {
+            return acc
+          }
+          seenLeadKeys.add(key)
+
+          const hasPayments = payments.length > 0
+          const hasPaid = payments.some(payment => payment.confirmed)
+          const hasPending = payments.some(payment => !payment.confirmed && (payment.expiresAt === null || payment.expiresAt > now))
+          const hasExpired = payments.some(payment => payment.expiresAt !== null && payment.expiresAt <= now)
+
+          const paymentStatus = (() => {
+            if (!hasPayments) return 'no_payment'
+            if (hasPaid) return 'paid'
+            if (hasPending) return 'pending'
+            if (hasExpired) return 'expired'
+            return 'no_payment'
           })()
 
-          return {
+          const latestPayment = payments
+            .slice()
+            .sort((a, b) => {
+              const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0
+              const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0
+              return bTime - aTime
+            })[0]
+
+          acc.push({
             ...lead,
-            payment_status: status
-          }
+            payment_status: paymentStatus,
+            payment_amount: latestPayment?.amount ?? null
+          })
+
+          return acc
+        }, [])
+
+        normalizedLeads.sort((a, b) => {
+          const aTime = a.created_at ? new Date(a.created_at).getTime() : 0
+          const bTime = b.created_at ? new Date(b.created_at).getTime() : 0
+          return bTime - aTime
         })
 
         setLeads(normalizedLeads)
       }
       setAnalyses(analysesData)
       if (pixPaymentsData) {
-        const normalizedPix = pixPaymentsData.map(payment => {
+        const normalizedPix = dedupedPixPayments.map(payment => {
           const expiresAt = payment.expires_at ? new Date(payment.expires_at).getTime() : null
           const status = payment.payment_confirmed === true
             ? 'paid'
@@ -105,14 +282,14 @@ const AdminDashboardPage = () => {
         })
         setPixPayments(normalizedPix)
       }
-      setCardPayments(cardPaymentsData)
+      setCardPayments(dedupedCardPayments)
       setMetaPixelId(pixelData || '')
     } catch (error) {
       // Erro ao carregar dados
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [dateRange])
 
   const handleUpdatePixel = async () => {
     setIsLoadingPixel(true)
@@ -235,7 +412,7 @@ const AdminDashboardPage = () => {
               <StatsCard
                 title="Leads Capturados"
                 value={stats?.total_leads.toLocaleString() || '0'}
-                subtitle={`Taxa de checkout: ${stats?.lead_conversion_rate.toFixed(1)}%`}
+                subtitle={`Taxa de checkout: ${(stats?.checkout_conversion_rate ?? 0).toFixed(1)}%`}
                 icon={MousePointerClick}
                 iconColor="bg-green-500/20 text-green-400"
               />
@@ -256,14 +433,14 @@ const AdminDashboardPage = () => {
               <StatsCard
                 title="Vendas"
                 value={stats?.total_sales.toLocaleString() || '0'}
-                subtitle={`PIX: ${pixPayments.length} | Card: ${cardPayments.length}`}
+                subtitle={`PIX: ${stats?.total_sales_pix ?? 0} | Card: ${stats?.total_sales_card ?? 0}`}
                 icon={CheckCircle}
                 iconColor="bg-red-500/20 text-red-400"
               />
             </div>
 
             {/* Revenue Cards */}
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-4">
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-2">
               <div className="rounded-3xl border border-emerald-100 bg-white p-6 shadow-lg shadow-emerald-100/40">
                 <div className="mb-4 flex items-center gap-3">
                   <div className="rounded-2xl bg-emerald-50 p-3">
@@ -273,40 +450,6 @@ const AdminDashboardPage = () => {
                     <p className="text-sm font-medium text-emerald-600">Receita Total</p>
                     <p className="text-3xl font-bold text-slate-900">
                       R$ {stats?.total_revenue.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) || '0,00'}
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-3xl border border-blue-100 bg-white p-6 shadow-lg shadow-blue-100/40">
-                <div className="mb-4 flex items-center gap-3">
-                  <div className="rounded-2xl bg-blue-50 p-3">
-                    <Wallet className="h-7 w-7 text-blue-500" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-blue-600">Receita PIX</p>
-                    <p className="text-3xl font-bold text-slate-900">
-                      R$ {stats?.revenue_pix.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) || '0,00'}
-                    </p>
-                    <p className="mt-1 text-xs font-medium text-blue-400">
-                      {stats?.total_sales_pix || 0} vendas
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-3xl border border-purple-100 bg-white p-6 shadow-lg shadow-purple-100/40">
-                <div className="mb-4 flex items-center gap-3">
-                  <div className="rounded-2xl bg-purple-50 p-3">
-                    <CreditCard className="h-7 w-7 text-purple-500" />
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-purple-600">Receita Cartão</p>
-                    <p className="text-3xl font-bold text-slate-900">
-                      R$ {stats?.revenue_card.toLocaleString('pt-BR', { minimumFractionDigits: 2 }) || '0,00'}
-                    </p>
-                    <p className="mt-1 text-xs font-medium text-purple-400">
-                      {stats?.total_sales_card || 0} vendas
                     </p>
                   </div>
                 </div>
