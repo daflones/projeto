@@ -1,8 +1,5 @@
-import { useEffect, useRef, useCallback } from 'react'
-import QRCode from 'qrcode'
-import { Copy, Check, RefreshCw } from 'lucide-react'
-import { useState } from 'react'
-import { createPixPayment, checkPixPaymentStatus, generatePixCode, getActivePixPayment, type PixPayment } from '../services/supabase'
+import { useEffect, useRef, useCallback, useState } from 'react'
+import { Copy, Check, RefreshCw, AlertCircle } from 'lucide-react'
 
 interface QRCodePixProps {
   amount: number
@@ -14,124 +11,79 @@ interface QRCodePixProps {
   onPaymentConfirmed?: () => void
 }
 
+interface GatewayPaymentData {
+  qr_code: string        // base64 image
+  qr_code_text: string   // pix copia e cola
+  pix_copia_cola: string
+  external_reference: string
+  id: string
+  payment_id: string
+}
+
 const QRCodePix = ({ amount, email, phone, whatsapp, nome, hasDiscount, onPaymentConfirmed }: QRCodePixProps) => {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
   const [copied, setCopied] = useState(false)
   const [timeLeft, setTimeLeft] = useState(900) // 15 minutos
-  const [pixPaymentId, setPixPaymentId] = useState<string | null>(null)
   const [pixCode, setPixCode] = useState('')
+  const [qrCodeImage, setQrCodeImage] = useState('')
+  const [externalReference, setExternalReference] = useState('')
   const [isExpired, setIsExpired] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
+  const [error, setError] = useState('')
   const hasInitialized = useRef(false)
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  // Função para criar ou reutilizar PIX existente
+  // Função para criar pagamento via DBXBankPay (através do nosso servidor)
   const createNewPix = useCallback(async () => {
     setIsGenerating(true)
+    setError('')
     try {
-      // Primeiro, verificar se já existe um PIX ativo não expirado
-      const activePixResult = await getActivePixPayment(email || '', phone || '', amount)
-      
-      if (activePixResult.success && activePixResult.data) {
-        // Reutilizar PIX existente
-        setPixPaymentId(activePixResult.data.id)
-        setPixCode(activePixResult.data.pix_code)
-        
-        // Calcular tempo restante até expiração
-        const expiresAt = new Date(activePixResult.data.expires_at)
-        const now = new Date()
-        const secondsLeft = Math.floor((expiresAt.getTime() - now.getTime()) / 1000)
-        setTimeLeft(secondsLeft > 0 ? secondsLeft : 0)
-        setIsExpired(secondsLeft <= 0)
-      } else {
-        // Criar novo PIX se não houver ativo
-        const description = hasDiscount ? 'Detector Traicao - 20% OFF' : 'Detector de Traicao'
-        const pixData = generatePixCode(amount, description)
-        const expiresAt = new Date()
-        expiresAt.setMinutes(expiresAt.getMinutes() + 15) // 15 minutos
-
-        // Buscar payment_id do lead se whatsapp foi fornecido
-        let paymentId: string | undefined
-        if (whatsapp) {
-          const { data: leadData } = await getActivePixPayment(email || '', phone || '', amount)
-          // Se não encontrou PIX ativo, buscar o payment_id do lead
-          if (!leadData) {
-            const { data: lead, error: leadError } = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/rest/v1/leads?whatsapp=eq.${whatsapp}&order=created_at.desc&limit=1`, {
-              headers: {
-                'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
-                'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`
-              }
-            }).then(r => r.json()).catch(() => ({ data: null, error: true }))
-            
-            if (!leadError && lead && lead.length > 0) {
-              paymentId = lead[0].payment_id
-            }
-          }
-        }
-
-        const pixPayment: Omit<PixPayment, 'id' | 'created_at'> = {
-          payment_id: paymentId,
-          pix_code: pixData.pixCode,
+      const response = await fetch('/api/create-payment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
           amount,
-          email: email || '',
-          phone: phone || '',
+          customer_name: nome || 'Cliente',
+          customer_email: email || '',
+          customer_phone: phone || (whatsapp || '').replace(/\D/g, ''),
           whatsapp: whatsapp || '',
-          nome: nome || 'Usuário',
-          payment_confirmed: false,
-          expires_at: expiresAt.toISOString()
-        }
+          nome: nome || 'Cliente'
+        })
+      })
 
-        const result = await createPixPayment(pixPayment)
-        
-        if (result.success && result.data) {
-          setPixPaymentId(result.data.id)
-          setPixCode(pixData.pixCode)
-          setTimeLeft(900) // Reset para 15 minutos
-          setIsExpired(false)
-        }
+      const data = await response.json()
+
+      if (!response.ok || !data.success) {
+        console.error('Erro ao criar pagamento:', data)
+        setError(data.error || 'Erro ao gerar QR Code. Tente novamente.')
+        return
       }
-    } catch (error) {
-      // Erro ao criar PIX
+
+      const paymentData = data as GatewayPaymentData & { success: boolean }
+
+      // Set QR code image (base64 from gateway)
+      setQrCodeImage(paymentData.qr_code || '')
+      // Set PIX copia e cola text
+      setPixCode(paymentData.pix_copia_cola || paymentData.qr_code_text || '')
+      // Set external reference for polling
+      setExternalReference(paymentData.external_reference || '')
+      // Reset timer
+      setTimeLeft(900)
+      setIsExpired(false)
+    } catch (err) {
+      console.error('Erro ao criar pagamento:', err)
+      setError('Erro de conexão. Verifique sua internet e tente novamente.')
     } finally {
       setIsGenerating(false)
     }
-  }, [amount, email, phone, whatsapp, nome, hasDiscount])
+  }, [amount, email, phone, whatsapp, nome])
 
   // Inicializar PIX na montagem do componente
   useEffect(() => {
-    // Evitar execução dupla em React Strict Mode
     if (hasInitialized.current) return
     hasInitialized.current = true
-    
     createNewPix()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-
-  // Regenerar QR Code quando dados principais mudarem após inicialização
-  useEffect(() => {
-    if (!hasInitialized.current) return
-
-    setCopied(false)
-    setPixPaymentId(null)
-    setPixCode('')
-    setIsExpired(false)
-    setTimeLeft(900)
-
-    void createNewPix()
-  }, [amount, hasDiscount, whatsapp, email, phone, nome, createNewPix])
-
-  // Gerar QR Code quando pixCode mudar
-  useEffect(() => {
-    if (canvasRef.current && pixCode) {
-      QRCode.toCanvas(canvasRef.current, pixCode, {
-        width: 200,
-        margin: 2,
-        color: {
-          dark: '#000000',
-          light: '#ffffff'
-        }
-      })
-    }
-  }, [pixCode])
 
   // Timer de expiração - Otimizado para 2s
   useEffect(() => {
@@ -151,26 +103,53 @@ const QRCodePix = ({ amount, email, phone, whatsapp, nome, hasDiscount, onPaymen
     return () => clearInterval(timer)
   }, [timeLeft])
 
-  // Polling para verificar pagamento
+  // Polling para verificar pagamento (via Supabase + server endpoint)
   useEffect(() => {
-    if (!pixPaymentId || isExpired) return
+    if (isExpired || (!externalReference && !whatsapp)) return
 
     const checkPayment = async () => {
-      const result = await checkPixPaymentStatus(pixPaymentId)
-      
-      if (result.success && result.data?.payment_confirmed) {
-        if (onPaymentConfirmed) {
-          onPaymentConfirmed()
+      try {
+        // Primary: check via server endpoint using external_reference
+        if (externalReference) {
+          const res = await fetch('/api/check-payment', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ external_reference: externalReference })
+          })
+          const data = await res.json()
+          if (data.success && data.payment_confirmed) {
+            if (onPaymentConfirmed) onPaymentConfirmed()
+            if (pollRef.current) clearInterval(pollRef.current)
+            return
+          }
         }
+
+        // Fallback: check via Supabase directly (legacy polling)
+        if (whatsapp) {
+          const res = await fetch('/api/check-payment', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ whatsapp })
+          })
+          const data = await res.json()
+          if (data.success && data.payment_confirmed) {
+            if (onPaymentConfirmed) onPaymentConfirmed()
+            if (pollRef.current) clearInterval(pollRef.current)
+            return
+          }
+        }
+      } catch {
+        // Erro silencioso no polling
       }
     }
 
-    // Verificar imediatamente e depois a cada 5 segundos (otimizado)
     checkPayment()
-    const pollInterval = setInterval(checkPayment, 5000)
+    pollRef.current = setInterval(checkPayment, 5000)
 
-    return () => clearInterval(pollInterval)
-  }, [pixPaymentId, isExpired, onPaymentConfirmed])
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current)
+    }
+  }, [externalReference, whatsapp, isExpired, onPaymentConfirmed])
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60)
@@ -183,7 +162,7 @@ const QRCodePix = ({ amount, email, phone, whatsapp, nome, hasDiscount, onPaymen
       await navigator.clipboard.writeText(pixCode)
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
-    } catch (error) {
+    } catch {
       // Erro ao copiar
     }
   }
@@ -205,41 +184,81 @@ const QRCodePix = ({ amount, email, phone, whatsapp, nome, hasDiscount, onPaymen
         </div>
       </div>
 
-      {/* QR Code */}
-      <div className="bg-white p-4 rounded-xl mb-6 mx-auto w-fit">
-        <canvas ref={canvasRef} />
-      </div>
-
-      {/* PIX Code */}
-      <div className="mb-6">
-        <label className="block text-sm font-semibold text-gray-800 mb-2">
-          Código PIX (Copia e Cola):
-        </label>
-        <div className="flex items-center space-x-2">
-          <input
-            type="text"
-            value={pixCode}
-            readOnly
-            className="input-field flex-1 text-xs"
-          />
+      {/* Error */}
+      {error && (
+        <div className="mb-6 rounded-xl border border-red-200 bg-red-50 p-4">
+          <div className="flex items-center gap-2 text-red-700">
+            <AlertCircle className="h-5 w-5 flex-shrink-0" />
+            <p className="text-sm font-medium">{error}</p>
+          </div>
           <button
-            onClick={copyPixCode}
-            className="btn-secondary p-3"
-            title="Copiar código PIX"
+            onClick={createNewPix}
+            disabled={isGenerating}
+            className="mt-3 w-full btn-primary"
           >
-            {copied ? (
-              <Check className="w-5 h-5 text-green-400" />
+            {isGenerating ? (
+              <div className="flex items-center justify-center">
+                <RefreshCw className="w-5 h-5 mr-2 animate-spin" />
+                Tentando novamente...
+              </div>
             ) : (
-              <Copy className="w-5 h-5" />
+              'Tentar Novamente'
             )}
           </button>
         </div>
-        {copied && (
-          <p className="text-green-400 text-sm mt-2">
-            Código PIX copiado!
-          </p>
-        )}
-      </div>
+      )}
+
+      {/* Loading */}
+      {isGenerating && !error && !qrCodeImage && (
+        <div className="mb-6 flex flex-col items-center gap-3">
+          <RefreshCw className="w-10 h-10 text-gray-400 animate-spin" />
+          <p className="text-gray-600 text-sm font-medium">Gerando QR Code de pagamento...</p>
+        </div>
+      )}
+
+      {/* QR Code Image (base64 from gateway) */}
+      {qrCodeImage && !error && (
+        <div className="bg-white p-4 rounded-xl mb-6 mx-auto w-fit">
+          <img
+            src={qrCodeImage}
+            alt="QR Code PIX"
+            className="w-[200px] h-[200px]"
+          />
+        </div>
+      )}
+
+      {/* PIX Copia e Cola */}
+      {pixCode && !error && (
+        <div className="mb-6">
+          <label className="block text-sm font-semibold text-gray-800 mb-2">
+            Código PIX (Copia e Cola):
+          </label>
+          <div className="flex items-center space-x-2">
+            <input
+              type="text"
+              value={pixCode}
+              readOnly
+              className="input-field flex-1 text-xs"
+            />
+            <button
+              onClick={copyPixCode}
+              className="btn-secondary p-3"
+              title="Copiar código PIX"
+            >
+              {copied ? (
+                <Check className="w-5 h-5 text-green-400" />
+              ) : (
+                <Copy className="w-5 h-5" />
+              )}
+            </button>
+          </div>
+          {copied && (
+            <p className="text-green-400 text-sm mt-2">
+              Código PIX copiado!
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Instructions */}
       <div className="bg-gray-50 border-2 border-gray-200 p-4 rounded-xl mb-6 text-left">
@@ -283,17 +302,19 @@ const QRCodePix = ({ amount, email, phone, whatsapp, nome, hasDiscount, onPaymen
           </button>
         </div>
       ) : (
-        <div className="mb-6">
-          <div className="bg-gray-50 border-2 border-gray-200 rounded-xl p-4">
-            <div className="flex items-center justify-center mb-2">
-              <div className="w-3 h-3 bg-gray-900 rounded-full mr-2"></div>
-              <p className="text-gray-900 font-bold" style={{ fontFamily: "'Montserrat', sans-serif" }}>Aguardando Pagamento...</p>
+        !error && qrCodeImage && (
+          <div className="mb-6">
+            <div className="bg-gray-50 border-2 border-gray-200 rounded-xl p-4">
+              <div className="flex items-center justify-center mb-2">
+                <div className="w-3 h-3 bg-gray-900 rounded-full mr-2"></div>
+                <p className="text-gray-900 font-bold" style={{ fontFamily: "'Montserrat', sans-serif" }}>Aguardando Pagamento...</p>
+              </div>
+              <p className="text-gray-600 text-sm">
+                O sistema verificará automaticamente quando o pagamento for confirmado
+              </p>
             </div>
-            <p className="text-gray-600 text-sm">
-              O sistema verificará automaticamente quando o pagamento for confirmado
-            </p>
           </div>
-        </div>
+        )
       )}
 
       <p className="text-xs text-gray-400">
