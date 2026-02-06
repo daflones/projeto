@@ -1,5 +1,10 @@
--- Migration: Add DBXBankPay gateway columns to pix_payments
+-- Migration: Add DBXBankPay gateway columns + missing columns to pix_payments
 -- Run this SQL in Supabase Dashboard > SQL Editor
+
+-- Columns used by paymentService.ts (may already exist)
+ALTER TABLE pix_payments
+  ADD COLUMN IF NOT EXISTS plan_id TEXT,
+  ADD COLUMN IF NOT EXISTS plan_name TEXT;
 
 -- New columns for DBXBankPay integration
 ALTER TABLE pix_payments

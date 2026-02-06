@@ -32,7 +32,7 @@ const QRCodePix = ({ amount, email, phone, whatsapp, nome, hasDiscount, onPaymen
   const hasInitialized = useRef(false)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  // Função para criar pagamento via DBXBankPay (através do nosso servidor)
+  // Função para criar pagamento via PayFast4 (através do nosso servidor)
   const createNewPix = useCallback(async () => {
     setIsGenerating(true)
     setError('')
@@ -44,7 +44,6 @@ const QRCodePix = ({ amount, email, phone, whatsapp, nome, hasDiscount, onPaymen
           amount,
           customer_name: nome || 'Cliente',
           customer_email: email || '',
-          customer_phone: phone || (whatsapp || '').replace(/\D/g, ''),
           whatsapp: whatsapp || '',
           nome: nome || 'Cliente'
         })

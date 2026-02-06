@@ -1,7 +1,6 @@
 import 'dotenv/config';
 import express from 'express';
 import path from 'path';
-import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import { createClient } from '@supabase/supabase-js';
 
@@ -10,9 +9,9 @@ const __dirname = path.dirname(__filename);
 
 // ─── Config ────────────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3001;
-const DBXBANKPAY_API_KEY = process.env.DBXBANKPAY_API_KEY;
-const DBXBANKPAY_API_URL = process.env.DBXBANKPAY_API_URL || 'https://dbxbankpay.com/api/v1';
-const DBXBANKPAY_WEBHOOK_SECRET = process.env.DBXBANKPAY_WEBHOOK_SECRET || '';
+const PAYFAST4_CLIENT_ID = process.env.PAYFAST4_CLIENT_ID || '';
+const PAYFAST4_CLIENT_SECRET = process.env.PAYFAST4_CLIENT_SECRET || '';
+const PAYFAST4_API_URL = process.env.PAYFAST4_API_URL || 'https://payfast4.com/api';
 const WEBHOOK_BASE_URL = process.env.WEBHOOK_BASE_URL || '';
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
@@ -26,22 +25,65 @@ if (SUPABASE_URL && SUPABASE_KEY) {
   console.warn('⚠️  Supabase credentials not found – webhook will not update DB');
 }
 
+// ─── PayFast4 OAuth Token Management ────────────────────────────────────────────
+let cachedToken = null;
+let tokenExpiresAt = 0;
+
+async function getPayFast4Token() {
+  // Return cached token if still valid (with 60s margin)
+  if (cachedToken && Date.now() < tokenExpiresAt - 60000) {
+    return cachedToken;
+  }
+
+  const credentials = Buffer.from(`${PAYFAST4_CLIENT_ID}:${PAYFAST4_CLIENT_SECRET}`).toString('base64');
+
+  console.log('🔑 Requesting PayFast4 OAuth token...');
+  const response = await fetch(`${PAYFAST4_API_URL}/oauth/token`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Basic ${credentials}`,
+      'Content-Type': 'application/json'
+    }
+  });
+
+  const responseText = await response.text();
+  console.log(`🔑 Token response [${response.status}]:`, responseText.substring(0, 300));
+
+  if (!response.ok) {
+    throw new Error(`Failed to get PayFast4 token: ${response.status} - ${responseText.substring(0, 200)}`);
+  }
+
+  let data;
+  try {
+    data = JSON.parse(responseText);
+  } catch {
+    throw new Error(`PayFast4 token response is not JSON: ${responseText.substring(0, 200)}`);
+  }
+
+  cachedToken = data.access_token || data.token;
+  // Default expiry: 1 hour if not provided
+  const expiresIn = data.expires_in || 3600;
+  tokenExpiresAt = Date.now() + expiresIn * 1000;
+
+  console.log('✅ PayFast4 token obtained, expires in', expiresIn, 'seconds');
+  return cachedToken;
+}
+
 // ─── Express app ───────────────────────────────────────────────────────────────
 const app = express();
 app.use(express.json());
 
 // ─── Health check ──────────────────────────────────────────────────────────────
 app.get('/api/health', (_req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  res.json({ status: 'ok', gateway: 'payfast4', timestamp: new Date().toISOString() });
 });
 
 // ─── POST /api/create-payment ──────────────────────────────────────────────────
-// Frontend calls this to create a PIX payment via DBXBankPay.
-// The API key never leaves the server.
+// Frontend calls this to create a PIX payment via PayFast4.
 app.post('/api/create-payment', async (req, res) => {
   try {
-    if (!DBXBANKPAY_API_KEY || DBXBANKPAY_API_KEY === 'SUA_API_KEY_AQUI') {
-      return res.status(500).json({ error: 'API key do DBXBankPay não configurada no servidor' });
+    if (!PAYFAST4_CLIENT_ID || !PAYFAST4_CLIENT_SECRET) {
+      return res.status(500).json({ error: 'Credenciais PayFast4 não configuradas no servidor' });
     }
 
     const {
@@ -49,10 +91,7 @@ app.post('/api/create-payment', async (req, res) => {
       customer_name,
       customer_email,
       customer_document,
-      customer_phone,
       external_reference,
-      plan_id,
-      plan_name,
       whatsapp,
       nome
     } = req.body;
@@ -61,64 +100,98 @@ app.post('/api/create-payment', async (req, res) => {
       return res.status(400).json({ error: 'Valor inválido' });
     }
 
+    // Get OAuth token
+    let token;
+    try {
+      token = await getPayFast4Token();
+    } catch (tokenError) {
+      console.error('❌ Failed to get PayFast4 token:', tokenError.message);
+      return res.status(502).json({ error: 'Erro de autenticação com o gateway de pagamento' });
+    }
+
     // Determine the public webhook URL
     let webhookUrl;
     if (WEBHOOK_BASE_URL) {
-      webhookUrl = `${WEBHOOK_BASE_URL}/api/webhook/dbxbankpay`;
+      webhookUrl = `${WEBHOOK_BASE_URL}/api/webhook/payfast4`;
     } else {
       const protocol = req.headers['x-forwarded-proto'] || req.protocol || 'https';
       const host = req.headers['x-forwarded-host'] || req.headers.host;
-      webhookUrl = `${protocol}://${host}/api/webhook/dbxbankpay`;
+      webhookUrl = `${protocol}://${host}/api/webhook/payfast4`;
     }
 
-    // Generate a unique external reference if not provided
-    const extRef = external_reference || `${(whatsapp || '').replace(/\D/g, '')}${Date.now()}`;
+    // Generate a unique external_id
+    const extId = external_reference || `${(whatsapp || '').replace(/\D/g, '')}_${Date.now()}`;
 
-    // Call DBXBankPay API
-    const apiUrl = `${DBXBANKPAY_API_URL}/deposits/create`;
-    console.log('📤 Calling DBXBankPay:', apiUrl, '| webhook:', webhookUrl);
+    // Call PayFast4 QR Code API
+    const apiUrl = `${PAYFAST4_API_URL}/pix/qrcode`;
+    const payload = {
+      amount: String(Number(amount)),
+      external_id: extId,
+      payerQuestion: 'Pagamento Detector de Traição',
+      payer: {
+        name: customer_name || nome || 'Cliente',
+        document: customer_document || '',
+        email: customer_email || ''
+      },
+      postbackUrl: webhookUrl
+    };
+
+    console.log('📤 Calling PayFast4:', apiUrl, '| postbackUrl:', webhookUrl);
+    console.log('📤 Payload:', JSON.stringify(payload));
 
     const apiResponse = await fetch(apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-API-Key': DBXBANKPAY_API_KEY
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${token}`
       },
-      body: JSON.stringify({
-        amount: Number(amount),
-        customer_email: customer_email || `${(whatsapp || 'user').replace(/\D/g, '')}@pix.local`,
-        customer_name: customer_name || nome || 'Cliente',
-        customer_document: customer_document || (whatsapp || '').replace(/\D/g, '').slice(-11) || '00000000000',
-        customer_phone: customer_phone || (whatsapp || '').replace(/\D/g, '') || '',
-        external_reference: extRef,
-        webhook_url: webhookUrl
-      })
+      body: JSON.stringify(payload)
     });
 
     // Read response as text first to handle non-JSON responses
     const responseText = await apiResponse.text();
-    console.log(`📥 DBXBankPay response [${apiResponse.status}]:`, responseText.substring(0, 500));
+    console.log(`📥 PayFast4 response [${apiResponse.status}]:`, responseText.substring(0, 500));
 
     let data;
     try {
       data = JSON.parse(responseText);
     } catch {
-      console.error('❌ DBXBankPay returned non-JSON response:', responseText.substring(0, 300));
+      console.error('❌ PayFast4 returned non-JSON response:', responseText.substring(0, 300));
       return res.status(502).json({
-        error: 'Gateway retornou resposta inválida. Verifique a URL da API.',
-        status: apiResponse.status,
-        hint: `URL usada: ${apiUrl}`
+        error: 'Gateway retornou resposta inválida.',
+        status: apiResponse.status
       });
     }
 
     if (!apiResponse.ok) {
-      console.error('❌ DBXBankPay error:', data);
+      console.error('❌ PayFast4 HTTP error:', data);
+      // If 401, clear token cache so next request gets a new one
+      if (apiResponse.status === 401) {
+        cachedToken = null;
+        tokenExpiresAt = 0;
+      }
       return res.status(apiResponse.status).json({ error: 'Erro ao criar pagamento', details: data });
     }
 
-    console.log('✅ Payment created:', { id: data.id, payment_id: data.payment_id, amount: data.amount, external_reference: extRef });
+    // PayFast4 may return HTTP 200 with success:false
+    if (data.success === false) {
+      console.error('❌ PayFast4 business error:', data.message || data);
+      return res.status(400).json({
+        error: data.message || 'Erro ao criar pagamento no gateway',
+        details: data
+      });
+    }
 
-    // Save/update in Supabase pix_payments table
+    // PayFast4 response - extract QR code fields
+    const paymentData = data.data || data;
+    const qrCodeImage = paymentData.qrcode || paymentData.qr_code || paymentData.qrCode || '';
+    const pixCopiaECola = paymentData.copiaecola || paymentData.pix_copia_cola || paymentData.qr_code_text || paymentData.pixCopiaECola || '';
+    const transactionId = paymentData.transactionId || paymentData.transaction_id || paymentData.id || '';
+
+    console.log('✅ Payment created:', { transactionId, amount, external_id: extId });
+
+    // Save in Supabase pix_payments table
     if (supabase && whatsapp) {
       try {
         const normalizedWhatsapp = (whatsapp || '').replace(/\D/g, '');
@@ -138,24 +211,27 @@ app.post('/api/create-payment', async (req, res) => {
           leadPaymentId = leadData.payment_id;
         }
 
-        await supabase
+        const { error: insertError } = await supabase
           .from('pix_payments')
           .insert([{
             payment_id: leadPaymentId,
-            pix_code: data.qr_code_text || data.pix_copia_cola || '',
+            pix_code: pixCopiaECola,
             amount: Number(amount),
             whatsapp: normalizedWhatsapp,
             nome: nome || customer_name || 'Cliente',
             email: customer_email || '',
-            phone: customer_phone || '',
+            phone: '',
             payment_confirmed: false,
             expires_at: expiresAt,
-            gateway_transaction_id: data.id || null,
-            gateway_payment_id: data.payment_id || null,
-            external_reference: extRef
+            gateway_transaction_id: transactionId,
+            external_reference: extId
           }]);
 
-        console.log('✅ pix_payments record created for', normalizedWhatsapp);
+        if (insertError) {
+          console.error('⚠️  Failed to save to pix_payments:', insertError.message);
+        } else {
+          console.log('✅ pix_payments record created for', normalizedWhatsapp);
+        }
       } catch (dbError) {
         console.error('⚠️  Failed to save to pix_payments:', dbError.message);
       }
@@ -164,16 +240,15 @@ app.post('/api/create-payment', async (req, res) => {
     // Return relevant data to frontend
     return res.json({
       success: true,
-      id: data.id,
-      payment_id: data.payment_id,
-      qr_code: data.qr_code,
-      qr_code_text: data.qr_code_text || data.pix_copia_cola,
-      pix_copia_cola: data.pix_copia_cola || data.qr_code_text,
-      amount: data.amount,
-      net_amount: data.net_amount,
-      fee: data.fee,
-      status: data.status,
-      external_reference: extRef
+      qr_code: qrCodeImage,
+      pix_copia_cola: pixCopiaECola,
+      qr_code_text: pixCopiaECola,
+      transaction_id: transactionId,
+      external_reference: extId,
+      amount: Number(amount),
+      status: paymentData.status || 'pending',
+      // Pass full response for debugging (remove in production)
+      _raw: paymentData
     });
   } catch (error) {
     console.error('❌ create-payment error:', error);
@@ -181,56 +256,41 @@ app.post('/api/create-payment', async (req, res) => {
   }
 });
 
-// ─── POST /api/webhook/dbxbankpay ──────────────────────────────────────────────
-// DBXBankPay sends payment notifications here.
-app.post('/api/webhook/dbxbankpay', async (req, res) => {
+// ─── POST /api/webhook/payfast4 ─────────────────────────────────────────────────
+// PayFast4 sends payment notifications here via postbackUrl.
+app.post('/api/webhook/payfast4', async (req, res) => {
   try {
     const payload = req.body;
-    console.log('🔔 Webhook received:', JSON.stringify(payload, null, 2));
+    console.log('🔔 Webhook PayFast4 received:', JSON.stringify(payload, null, 2));
 
-    // Verify HMAC signature if secret is configured
-    if (DBXBANKPAY_WEBHOOK_SECRET) {
-      const signature = req.headers['x-dbx-signature'];
-      if (signature) {
-        const payloadStr = JSON.stringify(payload);
-        const expectedSignature = crypto
-          .createHmac('sha256', DBXBANKPAY_WEBHOOK_SECRET)
-          .update(payloadStr)
-          .digest('hex');
+    // PayFast4 webhook format:
+    // { requestBody: { transactionType, transactionId, external_id, amount, paymentType, status, dateApproval } }
+    const webhookData = payload.requestBody || payload;
+    const status = webhookData.status;
+    const externalId = webhookData.external_id;
+    const transactionId = webhookData.transactionId || webhookData.transaction_id;
+    const amount = webhookData.amount;
 
-        if (signature !== expectedSignature) {
-          console.warn('⚠️  Invalid webhook signature');
-          return res.status(401).json({ error: 'Invalid signature' });
-        }
-        console.log('✅ Webhook signature verified');
-      }
-    }
+    if (status === 'PAID' && supabase) {
+      console.log(`✅ Payment PAID: txn=${transactionId} - R$ ${amount} - external_id=${externalId}`);
 
-    const event = payload.event;
-    const data = payload.data || payload;
-
-    if (event === 'payment.approved' && supabase) {
-      const externalRef = data.external_reference || data.external_id;
-      const transactionId = data.id;
-
-      console.log(`✅ Payment approved: ${transactionId} - R$ ${data.amount} - ref: ${externalRef}`);
-
-      // Update pix_payments by external_reference OR gateway_transaction_id
       let updated = false;
 
-      if (externalRef) {
+      // Update by external_reference (= external_id)
+      if (externalId) {
         const { data: updateData, error: updateError } = await supabase
           .from('pix_payments')
           .update({ payment_confirmed: true })
-          .eq('external_reference', externalRef)
+          .eq('external_reference', externalId)
           .select('id, whatsapp');
 
         if (!updateError && updateData && updateData.length > 0) {
           updated = true;
-          console.log(`✅ pix_payments updated by external_reference: ${externalRef}`, updateData);
+          console.log(`✅ pix_payments updated by external_reference: ${externalId}`, updateData);
         }
       }
 
+      // Fallback: update by gateway_transaction_id
       if (!updated && transactionId) {
         const { data: updateData, error: updateError } = await supabase
           .from('pix_payments')
@@ -245,25 +305,24 @@ app.post('/api/webhook/dbxbankpay', async (req, res) => {
       }
 
       if (!updated) {
-        console.warn(`⚠️  Could not find pix_payment for ref=${externalRef} or txn=${transactionId}`);
+        console.warn(`⚠️  Could not find pix_payment for external_id=${externalId} or txn=${transactionId}`);
       }
-    } else if (event === 'payment.approved') {
-      console.warn('⚠️  Payment approved but Supabase not available');
+    } else if (status === 'PAID') {
+      console.warn('⚠️  Payment PAID but Supabase not available');
     } else {
-      console.log(`ℹ️  Webhook event: ${event} (no action taken)`);
+      console.log(`ℹ️  Webhook status: ${status} (no action taken)`);
     }
 
     // Always return 200 to acknowledge receipt
-    return res.status(200).json({ status: 'received' });
+    return res.status(200).json({ received: true });
   } catch (error) {
     console.error('❌ Webhook processing error:', error);
-    // Still return 200 to prevent retries
-    return res.status(200).json({ status: 'received', error: error.message });
+    return res.status(200).json({ received: true, error: error.message });
   }
 });
 
 // ─── POST /api/check-payment ───────────────────────────────────────────────────
-// Frontend can also check payment status via this endpoint
+// Frontend polls this to check payment status
 app.post('/api/check-payment', async (req, res) => {
   try {
     if (!supabase) {
@@ -316,10 +375,10 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`✅ Server running on port ${PORT}`);
   console.log(`   API: http://localhost:${PORT}/api/health`);
   const publicWebhook = WEBHOOK_BASE_URL
-    ? `${WEBHOOK_BASE_URL}/api/webhook/dbxbankpay`
-    : `http://localhost:${PORT}/api/webhook/dbxbankpay`;
+    ? `${WEBHOOK_BASE_URL}/api/webhook/payfast4`
+    : `http://localhost:${PORT}/api/webhook/payfast4`;
   console.log(`   Webhook: ${publicWebhook}`);
-  if (!DBXBANKPAY_API_KEY || DBXBANKPAY_API_KEY === 'SUA_API_KEY_AQUI') {
-    console.warn('⚠️  DBXBANKPAY_API_KEY not configured! Payments will not work.');
+  if (!PAYFAST4_CLIENT_ID || !PAYFAST4_CLIENT_SECRET) {
+    console.warn('⚠️  PayFast4 credentials not configured! Payments will not work.');
   }
 });
