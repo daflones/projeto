@@ -104,8 +104,8 @@ const AnalysisPage = () => {
       id: 'basic' as const,
       name: 'Análise Completa',
       subtitle: 'Perfeita para confirmar suspeitas pontuais com detalhes confiáveis.',
-      priceLabel: 'R$ 10,00',
-      priceValue: 10,
+      priceLabel: 'R$ 10,97',
+      priceValue: 10.97,
       badge: 'Acesso imediato',
       highlight: false,
       benefits: [
@@ -119,8 +119,8 @@ const AnalysisPage = () => {
       id: 'premium' as const,
       name: 'Plano Vitalício',
       subtitle: 'Investigue quantas vezes quiser e acompanhe a evolução do risco.',
-      priceLabel: 'R$ 49,99',
-      priceValue: 49.99,
+      priceLabel: 'R$ 29,97',
+      priceValue: 29.97,
       badge: 'Mais escolhido',
       highlight: true,
       benefits: [
