@@ -3,6 +3,7 @@ import express from 'express';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { createClient } from '@supabase/supabase-js';
+ import QRCode from 'qrcode';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -185,9 +186,31 @@ app.post('/api/create-payment', async (req, res) => {
 
     // PayFast4 response - extract QR code fields
     const paymentData = data.data || data;
-    const qrCodeImage = paymentData.qrcode || paymentData.qr_code || paymentData.qrCode || '';
-    const pixCopiaECola = paymentData.copiaecola || paymentData.pix_copia_cola || paymentData.qr_code_text || paymentData.pixCopiaECola || '';
+    const qrCodeRaw = paymentData.qrcode || paymentData.qr_code || paymentData.qrCode || '';
+    const pixCopiaECola =
+      paymentData.copiaecola ||
+      paymentData.pix_copia_cola ||
+      paymentData.qr_code_text ||
+      paymentData.pixCopiaECola ||
+      qrCodeRaw ||
+      '';
     const transactionId = paymentData.transactionId || paymentData.transaction_id || paymentData.id || '';
+
+    let qrCodeImage = '';
+    if (typeof qrCodeRaw === 'string' && qrCodeRaw.trim()) {
+      // Some gateways return an actual image URL/base64, others return the EMV (copy-paste) string.
+      // Frontend expects an image src, so if it's not already a data URL, generate one.
+      if (qrCodeRaw.startsWith('data:image/')) {
+        qrCodeImage = qrCodeRaw;
+      } else {
+        try {
+          qrCodeImage = await QRCode.toDataURL(qrCodeRaw, { width: 240, margin: 1 });
+        } catch (qrErr) {
+          console.error('⚠️  Failed to generate QR code image:', qrErr?.message || qrErr);
+          qrCodeImage = '';
+        }
+      }
+    }
 
     console.log('✅ Payment created:', { transactionId, amount, external_id: extId });
 
