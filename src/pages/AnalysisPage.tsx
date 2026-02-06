@@ -104,8 +104,8 @@ const AnalysisPage = () => {
       id: 'basic' as const,
       name: 'Análise Completa',
       subtitle: 'Perfeita para confirmar suspeitas pontuais com detalhes confiáveis.',
-      priceLabel: 'R$ 1,00',
-      priceValue: 1,
+      priceLabel: 'R$ 10,00',
+      priceValue: 10,
       badge: 'Acesso imediato',
       highlight: false,
       benefits: [

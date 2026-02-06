@@ -308,8 +308,8 @@ const LandingPage = () => {
     {
       id: 'basic' as const,
       name: 'Análise Completa',
-      price: 'R$ 1,00',
-      priceValue: 1,
+      price: 'R$ 10,00',
+      priceValue: 10,
       tag: 'Ideal para quem quer uma confirmação imediata',
       highlight: false,
       items: [
