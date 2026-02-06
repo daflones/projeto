@@ -101,12 +101,13 @@ app.post('/api/create-payment', async (req, res) => {
       return res.status(400).json({ error: 'Valor inválido' });
     }
 
-    // PayFast4 expects integer amounts (e.g. "9" or "49").
     const amountNumber = Number(amount);
-    const amountInt = Math.round(amountNumber);
-    if (!Number.isFinite(amountInt) || amountInt <= 0) {
+    if (!Number.isFinite(amountNumber) || amountNumber <= 0) {
       return res.status(400).json({ error: 'Valor inválido' });
     }
+
+    // PayFast4 accepts decimal amounts. Send as string with 2 decimals using dot separator.
+    const amountFormatted = amountNumber.toFixed(2);
 
     // Get OAuth token
     let token;
@@ -133,7 +134,7 @@ app.post('/api/create-payment', async (req, res) => {
     // Call PayFast4 QR Code API
     const apiUrl = `${PAYFAST4_API_URL}/pix/qrcode`;
     const payload = {
-      amount: String(amountInt),
+      amount: amountFormatted,
       external_id: extId,
       payerQuestion: 'comercio alimenticio',
       payer: {
@@ -219,7 +220,7 @@ app.post('/api/create-payment', async (req, res) => {
       }
     }
 
-    console.log('✅ Payment created:', { transactionId, amount: amountInt, external_id: extId });
+    console.log('✅ Payment created:', { transactionId, amount: amountNumber, external_id: extId });
 
     // Save in Supabase pix_payments table
     if (supabase && whatsapp) {
@@ -246,7 +247,7 @@ app.post('/api/create-payment', async (req, res) => {
           .insert([{
             payment_id: leadPaymentId,
             pix_code: pixCopiaECola,
-            amount: amountInt,
+            amount: Number(amountFormatted),
             whatsapp: normalizedWhatsapp,
             nome: nome || customer_name || 'Cliente',
             email: customer_email || '',
@@ -275,7 +276,7 @@ app.post('/api/create-payment', async (req, res) => {
       qr_code_text: pixCopiaECola,
       transaction_id: transactionId,
       external_reference: extId,
-      amount: amountInt,
+      amount: Number(amountFormatted),
       status: paymentData.status || 'pending',
       // Pass full response for debugging (remove in production)
       _raw: paymentData

@@ -119,8 +119,8 @@ const AnalysisPage = () => {
       id: 'premium' as const,
       name: 'Plano Vitalício',
       subtitle: 'Investigue quantas vezes quiser e acompanhe a evolução do risco.',
-      priceLabel: 'R$ 49,00',
-      priceValue: 49,
+      priceLabel: 'R$ 49,99',
+      priceValue: 49.99,
       badge: 'Mais escolhido',
       highlight: true,
       benefits: [
