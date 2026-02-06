@@ -133,8 +133,8 @@ const LandingPage = () => {
     if (selectedPlanId) {
       const planMeta = pricingPlans.find(plan => plan.id === selectedPlanId)
       baseData.selectedPlanId = selectedPlanId
-      baseData.selectedPlanPrice = planMeta?.priceValue ?? 29.97
-      baseData.selectedPlanLabel = planMeta?.price ?? 'R$ 29,97'
+      baseData.selectedPlanPrice = planMeta?.priceValue ?? priceB
+      baseData.selectedPlanLabel = planMeta?.price ?? fmtBRL(priceB)
       baseData.selectedPlanName = planMeta?.name ?? 'Plano Vitalício'
     }
 
@@ -304,12 +304,16 @@ const LandingPage = () => {
     }
   ]
 
+  const priceA = Number(import.meta.env.VITE_PRICE_A) || 10.97
+  const priceB = Number(import.meta.env.VITE_PRICE_B) || 29.97
+  const fmtBRL = (v: number) => `R$ ${v.toFixed(2).replace('.', ',')}`
+
   const pricingPlans = [
     {
       id: 'basic' as const,
       name: 'Análise Completa',
-      price: 'R$ 10,97',
-      priceValue: 10.97,
+      price: fmtBRL(priceA),
+      priceValue: priceA,
       tag: 'Ideal para quem quer uma confirmação imediata',
       highlight: false,
       items: [
@@ -322,8 +326,8 @@ const LandingPage = () => {
     {
       id: 'premium' as const,
       name: 'Plano Vitalício',
-      price: 'R$ 29,97',
-      priceValue: 29.97,
+      price: fmtBRL(priceB),
+      priceValue: priceB,
       tag: 'Investigue sempre que quiser, sem limites',
       highlight: true,
       items: [

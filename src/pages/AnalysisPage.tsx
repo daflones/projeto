@@ -99,13 +99,17 @@ const AnalysisPage = () => {
     window.scrollTo({ top: 0, behavior: 'auto' })
   }, [])
 
+  const priceA = Number(import.meta.env.VITE_PRICE_A) || 10.97
+  const priceB = Number(import.meta.env.VITE_PRICE_B) || 29.97
+  const fmtBRL = (v: number) => `R$ ${v.toFixed(2).replace('.', ',')}`
+
   const planOptions = useMemo(() => [
     {
       id: 'basic' as const,
       name: 'Análise Completa',
       subtitle: 'Perfeita para confirmar suspeitas pontuais com detalhes confiáveis.',
-      priceLabel: 'R$ 10,97',
-      priceValue: 10.97,
+      priceLabel: fmtBRL(priceA),
+      priceValue: priceA,
       badge: 'Acesso imediato',
       highlight: false,
       benefits: [
@@ -119,8 +123,8 @@ const AnalysisPage = () => {
       id: 'premium' as const,
       name: 'Plano Vitalício',
       subtitle: 'Investigue quantas vezes quiser e acompanhe a evolução do risco.',
-      priceLabel: 'R$ 29,97',
-      priceValue: 29.97,
+      priceLabel: fmtBRL(priceB),
+      priceValue: priceB,
       badge: 'Mais escolhido',
       highlight: true,
       benefits: [
@@ -130,7 +134,7 @@ const AnalysisPage = () => {
         'Acesso permanente à comunidade exclusiva'
       ]
     }
-  ], [])
+  ], [priceA, priceB])
 
   const selectedPlanOption = planOptions.find(plan => plan.id === selectedPlan) || planOptions[0]
   const planValue = selectedPlanOption.priceValue
