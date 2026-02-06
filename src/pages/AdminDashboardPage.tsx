@@ -3,8 +3,13 @@ import { useNavigate } from 'react-router-dom'
 import {
   BarChart3, Users, TrendingUp, DollarSign, Eye, MousePointerClick,
   ShoppingCart, CheckCircle, LogOut, Settings, RefreshCw, Calendar,
-  Activity, Wallet, Check, Clock, X, CreditCard, Package
+  Activity, Wallet, Check, Clock, X, CreditCard, Package,
+  UserCheck, FileText
 } from 'lucide-react'
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  Legend, PieChart, Pie, Cell, AreaChart, Area
+} from 'recharts'
 import { useAdmin } from '../contexts/AdminContext'
 import {
   getDashboardStats, getEventsByDay, getConversionFunnelStats, getPlansViewedCount,
@@ -471,41 +476,134 @@ const AdminDashboardPage = () => {
               </div>
             </div>
 
-            {/* Events Table */}
+            {/* Daily Metrics Chart */}
             <div className="rounded-3xl border border-rose-100 bg-white p-6 shadow-lg shadow-rose-100/40">
               <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-slate-900">
                 <BarChart3 className="h-5 w-5 text-rose-500" />
-                Eventos por Dia
+                Métricas Diárias
               </h3>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-rose-100">
-                      <th className="py-3 px-4 text-left text-sm font-semibold text-slate-400">Data</th>
-                      <th className="py-3 px-4 text-right text-sm font-semibold text-slate-400">Visualizações</th>
-                      <th className="py-3 px-4 text-right text-sm font-semibold text-slate-400">Leads</th>
-                      <th className="py-3 px-4 text-right text-sm font-semibold text-slate-400">Checkouts</th>
-                      <th className="py-3 px-4 text-right text-sm font-semibold text-slate-400">Vendas</th>
-                      <th className="py-3 px-4 text-right text-sm font-semibold text-slate-400">Receita</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {eventsByDay.slice(0, 10).map((day, index) => (
-                      <tr key={index} className="border-b border-rose-50/70 transition-colors hover:bg-rose-50/60">
-                        <td className="py-3 px-4 text-sm font-medium text-slate-600">
-                          {new Date(day.date).toLocaleDateString('pt-BR')}
-                        </td>
-                        <td className="py-3 px-4 text-right text-sm font-medium text-slate-500">{day.page_views}</td>
-                        <td className="py-3 px-4 text-right text-sm font-medium text-slate-500">{day.leads}</td>
-                        <td className="py-3 px-4 text-right text-sm font-medium text-slate-500">{day.checkouts}</td>
-                        <td className="py-3 px-4 text-right text-sm font-medium text-slate-500">{day.sales}</td>
-                        <td className="py-3 px-4 text-right text-sm font-semibold text-emerald-500">
-                          R$ {(day.revenue || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+              <div className="h-80">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={eventsByDay.slice(-14)} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#fce7f3" />
+                    <XAxis
+                      dataKey="date"
+                      tickFormatter={(v) => new Date(v).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+                      tick={{ fontSize: 12, fill: '#94a3b8' }}
+                    />
+                    <YAxis tick={{ fontSize: 12, fill: '#94a3b8' }} />
+                    <Tooltip
+                      labelFormatter={(v) => new Date(v).toLocaleDateString('pt-BR')}
+                      contentStyle={{ borderRadius: '16px', border: '1px solid #fce7f3', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}
+                    />
+                    <Legend />
+                    <Bar dataKey="page_views" name="Visualizações" fill="#60a5fa" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="leads" name="Leads" fill="#34d399" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="checkouts" name="Checkouts" fill="#fbbf24" radius={[4, 4, 0, 0]} />
+                    <Bar dataKey="sales" name="Vendas" fill="#f43f5e" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </div>
+
+            {/* Revenue Chart + Payment Status Pie */}
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+              <div className="rounded-3xl border border-rose-100 bg-white p-6 shadow-lg shadow-rose-100/40">
+                <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-slate-900">
+                  <DollarSign className="h-5 w-5 text-emerald-500" />
+                  Receita Diária
+                </h3>
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={eventsByDay.slice(-14)} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="#fce7f3" />
+                      <XAxis
+                        dataKey="date"
+                        tickFormatter={(v) => new Date(v).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}
+                        tick={{ fontSize: 12, fill: '#94a3b8' }}
+                      />
+                      <YAxis tick={{ fontSize: 12, fill: '#94a3b8' }} tickFormatter={(v) => `R$${v}`} />
+                      <Tooltip
+                        labelFormatter={(v) => new Date(v).toLocaleDateString('pt-BR')}
+                        formatter={(value: number) => [`R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 'Receita']}
+                        contentStyle={{ borderRadius: '16px', border: '1px solid #d1fae5', boxShadow: '0 4px 12px rgba(0,0,0,0.05)' }}
+                      />
+                      <Area type="monotone" dataKey="revenue" name="Receita" stroke="#10b981" fill="#d1fae5" strokeWidth={2} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              <div className="rounded-3xl border border-rose-100 bg-white p-6 shadow-lg shadow-rose-100/40">
+                <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-slate-900">
+                  <Wallet className="h-5 w-5 text-rose-500" />
+                  Status dos Pagamentos
+                </h3>
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={[
+                          { name: 'Pagos', value: paymentStats?.paid_leads || 0, color: '#10b981' },
+                          { name: 'Pendentes', value: paymentStats?.pending_leads || 0, color: '#f59e0b' },
+                          { name: 'Expirados', value: paymentStats?.expired_leads || 0, color: '#94a3b8' },
+                          { name: 'Sem Pagamento', value: paymentStats?.no_payment_leads || 0, color: '#f43f5e' }
+                        ].filter(d => d.value > 0)}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={50}
+                        outerRadius={90}
+                        paddingAngle={3}
+                        dataKey="value"
+                        label={({ name, value }) => `${name}: ${value}`}
+                      >
+                        {[
+                          { name: 'Pagos', value: paymentStats?.paid_leads || 0, color: '#10b981' },
+                          { name: 'Pendentes', value: paymentStats?.pending_leads || 0, color: '#f59e0b' },
+                          { name: 'Expirados', value: paymentStats?.expired_leads || 0, color: '#94a3b8' },
+                          { name: 'Sem Pagamento', value: paymentStats?.no_payment_leads || 0, color: '#f43f5e' }
+                        ].filter(d => d.value > 0).map((entry, index) => (
+                          <Cell key={index} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip formatter={(value: number, name: string) => [value, name]} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+            </div>
+
+            {/* Conversion Rates Summary */}
+            <div className="rounded-3xl border border-rose-100 bg-white p-6 shadow-lg shadow-rose-100/40">
+              <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-slate-900">
+                <TrendingUp className="h-5 w-5 text-rose-500" />
+                Taxas de Conversão
+              </h3>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="rounded-2xl bg-blue-50 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-blue-400">Visualizações → Leads</p>
+                  <p className="mt-1 text-2xl font-bold text-blue-600">
+                    {stats?.lead_conversion_rate?.toFixed(1) || '0.0'}%
+                  </p>
+                </div>
+                <div className="rounded-2xl bg-amber-50 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-amber-400">Leads → Checkout</p>
+                  <p className="mt-1 text-2xl font-bold text-amber-600">
+                    {stats?.checkout_conversion_rate?.toFixed(1) || '0.0'}%
+                  </p>
+                </div>
+                <div className="rounded-2xl bg-emerald-50 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-emerald-400">Checkout → Pagamento</p>
+                  <p className="mt-1 text-2xl font-bold text-emerald-600">
+                    {stats?.payment_rate?.toFixed(1) || '0.0'}%
+                  </p>
+                </div>
+                <div className="rounded-2xl bg-rose-50 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-rose-400">Conversão Geral</p>
+                  <p className="mt-1 text-2xl font-bold text-rose-600">
+                    {stats?.overall_conversion_rate?.toFixed(1) || '0.0'}%
+                  </p>
+                </div>
               </div>
             </div>
           </div>
@@ -566,54 +664,185 @@ const AdminDashboardPage = () => {
 
         {/* Analyses Tab */}
         {activeTab === 'analyses' && (
-          <div className="rounded-3xl border border-rose-100 bg-white p-6 shadow-lg shadow-rose-100/40">
-            <h3 className="mb-6 flex items-center gap-2 text-xl font-bold text-slate-900">
-              <Activity className="h-6 w-6 text-rose-500" />
-              Análises Realizadas ({analyses.length})
-            </h3>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-rose-100">
-                    <th className="py-4 px-4 text-left text-sm font-semibold text-slate-400">WhatsApp</th>
-                    <th className="py-4 px-4 text-left text-sm font-semibold text-slate-400">Nome</th>
-                    <th className="py-4 px-4 text-center text-sm font-semibold text-slate-400">Mensagens</th>
-                    <th className="py-4 px-4 text-center text-sm font-semibold text-slate-400">Mídias</th>
-                    <th className="py-4 px-4 text-center text-sm font-semibold text-slate-400">Contatos</th>
-                    <th className="py-4 px-4 text-center text-sm font-semibold text-slate-400">Risco</th>
-                    <th className="py-4 px-4 text-left text-sm font-semibold text-slate-400">Data</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {analyses.slice(0, 20).map((analysis, index) => (
-                    <tr key={index} className="border-b border-rose-50/70 transition-colors hover:bg-rose-50/60">
-                      <td className="py-4 px-4">
-                        <span className="rounded-lg bg-rose-50 px-3 py-1 font-mono text-sm font-medium text-rose-500">
-                          {analysis.whatsapp}
-                        </span>
-                      </td>
-                      <td className="py-4 px-4 text-sm font-medium text-slate-500">{analysis.nome || '-'}</td>
-                      <td className="py-4 px-4 text-center text-sm font-medium text-slate-500">{analysis.messages_count}</td>
-                      <td className="py-4 px-4 text-center text-sm font-medium text-slate-500">{analysis.media_count}</td>
-                      <td className="py-4 px-4 text-center text-sm font-medium text-slate-500">{analysis.contacts_count}</td>
-                      <td className="py-4 px-4 text-center">
-                        <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
-                          analysis.risk_level === 'high'
-                            ? 'bg-rose-100 text-rose-600'
-                            : analysis.risk_level === 'medium'
-                            ? 'bg-amber-100 text-amber-600'
-                            : 'bg-emerald-100 text-emerald-600'
-                        }`}>
-                          {analysis.risk_level === 'high' ? 'Alto' : analysis.risk_level === 'medium' ? 'Médio' : 'Baixo'}
-                        </span>
-                      </td>
-                      <td className="py-4 px-4 text-sm font-medium text-slate-400">
-                        {new Date(analysis.created_at).toLocaleString('pt-BR')}
-                      </td>
+          <div className="space-y-6">
+            {/* Analysis Summary Cards */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="rounded-2xl border border-rose-100 bg-white p-5 shadow-sm">
+                <div className="flex items-center gap-3">
+                  <div className="rounded-xl bg-blue-50 p-2.5">
+                    <FileText className="h-5 w-5 text-blue-500" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Total Análises</p>
+                    <p className="text-2xl font-bold text-slate-900">{analyses.length}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="rounded-2xl border border-rose-100 bg-white p-5 shadow-sm">
+                <div className="flex items-center gap-3">
+                  <div className="rounded-xl bg-rose-50 p-2.5">
+                    <Activity className="h-5 w-5 text-rose-500" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Risco Alto</p>
+                    <p className="text-2xl font-bold text-rose-600">{analyses.filter(a => a.risk_level === 'high').length}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="rounded-2xl border border-rose-100 bg-white p-5 shadow-sm">
+                <div className="flex items-center gap-3">
+                  <div className="rounded-xl bg-amber-50 p-2.5">
+                    <Activity className="h-5 w-5 text-amber-500" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Risco Médio</p>
+                    <p className="text-2xl font-bold text-amber-600">{analyses.filter(a => a.risk_level === 'medium').length}</p>
+                  </div>
+                </div>
+              </div>
+              <div className="rounded-2xl border border-rose-100 bg-white p-5 shadow-sm">
+                <div className="flex items-center gap-3">
+                  <div className="rounded-xl bg-emerald-50 p-2.5">
+                    <UserCheck className="h-5 w-5 text-emerald-500" />
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-400">Risco Baixo</p>
+                    <p className="text-2xl font-bold text-emerald-600">{analyses.filter(a => a.risk_level === 'low').length}</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Risk Distribution Chart */}
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+              <div className="rounded-3xl border border-rose-100 bg-white p-6 shadow-lg shadow-rose-100/40">
+                <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-slate-900">
+                  <Activity className="h-5 w-5 text-rose-500" />
+                  Distribuição de Risco
+                </h3>
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={[
+                          { name: 'Alto', value: analyses.filter(a => a.risk_level === 'high').length, color: '#f43f5e' },
+                          { name: 'Médio', value: analyses.filter(a => a.risk_level === 'medium').length, color: '#f59e0b' },
+                          { name: 'Baixo', value: analyses.filter(a => a.risk_level === 'low').length, color: '#10b981' },
+                        ].filter(d => d.value > 0)}
+                        cx="50%"
+                        cy="50%"
+                        innerRadius={50}
+                        outerRadius={90}
+                        paddingAngle={3}
+                        dataKey="value"
+                        label={({ name, value }) => `${name}: ${value}`}
+                      >
+                        {[
+                          { name: 'Alto', value: analyses.filter(a => a.risk_level === 'high').length, color: '#f43f5e' },
+                          { name: 'Médio', value: analyses.filter(a => a.risk_level === 'medium').length, color: '#f59e0b' },
+                          { name: 'Baixo', value: analyses.filter(a => a.risk_level === 'low').length, color: '#10b981' },
+                        ].filter(d => d.value > 0).map((entry, index) => (
+                          <Cell key={index} fill={entry.color} />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+
+              <div className="rounded-3xl border border-rose-100 bg-white p-6 shadow-lg shadow-rose-100/40">
+                <h3 className="mb-4 flex items-center gap-2 text-lg font-semibold text-slate-900">
+                  <BarChart3 className="h-5 w-5 text-rose-500" />
+                  Resumo Geral
+                </h3>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between rounded-xl bg-slate-50 p-4">
+                    <span className="text-sm font-medium text-slate-500">Média de Mensagens</span>
+                    <span className="text-lg font-bold text-slate-900">
+                      {analyses.length ? Math.round(analyses.reduce((s, a) => s + (a.messages_count || 0), 0) / analyses.length) : 0}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between rounded-xl bg-slate-50 p-4">
+                    <span className="text-sm font-medium text-slate-500">Média de Mídias</span>
+                    <span className="text-lg font-bold text-slate-900">
+                      {analyses.length ? Math.round(analyses.reduce((s, a) => s + (a.media_count || 0), 0) / analyses.length) : 0}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between rounded-xl bg-slate-50 p-4">
+                    <span className="text-sm font-medium text-slate-500">Média de Contatos</span>
+                    <span className="text-lg font-bold text-slate-900">
+                      {analyses.length ? Math.round(analyses.reduce((s, a) => s + (a.contacts_count || 0), 0) / analyses.length) : 0}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between rounded-xl bg-slate-50 p-4">
+                    <span className="text-sm font-medium text-slate-500">Clientes Únicos</span>
+                    <span className="text-lg font-bold text-slate-900">
+                      {new Set(analyses.map(a => a.whatsapp)).size}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Analyses Table */}
+            <div className="rounded-3xl border border-rose-100 bg-white p-6 shadow-lg shadow-rose-100/40">
+              <h3 className="mb-6 flex items-center gap-2 text-xl font-bold text-slate-900">
+                <Activity className="h-6 w-6 text-rose-500" />
+                Análises Realizadas ({analyses.length})
+              </h3>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-rose-100">
+                      <th className="py-4 px-4 text-left text-sm font-semibold text-slate-400">WhatsApp</th>
+                      <th className="py-4 px-4 text-left text-sm font-semibold text-slate-400">Nome</th>
+                      <th className="py-4 px-4 text-center text-sm font-semibold text-slate-400">Mensagens</th>
+                      <th className="py-4 px-4 text-center text-sm font-semibold text-slate-400">Mídias</th>
+                      <th className="py-4 px-4 text-center text-sm font-semibold text-slate-400">Contatos</th>
+                      <th className="py-4 px-4 text-center text-sm font-semibold text-slate-400">Risco</th>
+                      <th className="py-4 px-4 text-left text-sm font-semibold text-slate-400">Data</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {analyses.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="py-12 text-center text-slate-400">
+                          Nenhuma análise realizada
+                        </td>
+                      </tr>
+                    ) : (
+                      analyses.map((analysis, index) => (
+                        <tr key={index} className="border-b border-rose-50/70 transition-colors hover:bg-rose-50/60">
+                          <td className="py-4 px-4">
+                            <span className="rounded-lg bg-rose-50 px-3 py-1 font-mono text-sm font-medium text-rose-500">
+                              {analysis.whatsapp}
+                            </span>
+                          </td>
+                          <td className="py-4 px-4 text-sm font-medium text-slate-500">{analysis.nome || '-'}</td>
+                          <td className="py-4 px-4 text-center text-sm font-medium text-slate-500">{analysis.messages_count}</td>
+                          <td className="py-4 px-4 text-center text-sm font-medium text-slate-500">{analysis.media_count}</td>
+                          <td className="py-4 px-4 text-center text-sm font-medium text-slate-500">{analysis.contacts_count}</td>
+                          <td className="py-4 px-4 text-center">
+                            <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
+                              analysis.risk_level === 'high'
+                                ? 'bg-rose-100 text-rose-600'
+                                : analysis.risk_level === 'medium'
+                                ? 'bg-amber-100 text-amber-600'
+                                : 'bg-emerald-100 text-emerald-600'
+                            }`}>
+                              {analysis.risk_level === 'high' ? 'Alto' : analysis.risk_level === 'medium' ? 'Médio' : 'Baixo'}
+                            </span>
+                          </td>
+                          <td className="py-4 px-4 text-sm font-medium text-slate-400">
+                            {new Date(analysis.created_at).toLocaleString('pt-BR')}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}

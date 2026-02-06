@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
-import { ChevronLeft, ChevronRight, CreditCard, QrCode, CheckCircle, Clock, XCircle, Trash2, Loader2 } from 'lucide-react'
-import { deletePixPaymentsByIds, deleteCardPaymentsByIds } from '../../services/adminService'
+import { ChevronLeft, ChevronRight, CreditCard, QrCode, CheckCircle, Clock, XCircle, Trash2, Loader2, Search, Copy, Check } from 'lucide-react'
+import { deletePixPaymentsByIds, deleteCardPaymentsByIds, updateLeadPaymentStatus } from '../../services/adminService'
 
 interface PaymentRow {
   id: string
@@ -12,6 +12,9 @@ interface PaymentRow {
   created_at: string
   expires_at?: string | null
   origin: 'pix' | 'card'
+  payment_id?: string
+  payment_confirmed?: boolean
+  selected_plan?: string
 }
 
 interface PaymentsTableProps {
@@ -25,7 +28,10 @@ const PaymentsTable = ({ pixPayments, cardPayments, onRefresh }: PaymentsTablePr
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'paid' | 'failed' | 'expired'>('all')
   const [selectedRows, setSelectedRows] = useState<string[]>([])
   const [isDeleting, setIsDeleting] = useState(false)
-  const itemsPerPage = 10
+  const [searchQuery, setSearchQuery] = useState('')
+  const [updatingPayment, setUpdatingPayment] = useState<string | null>(null)
+  const [copiedId, setCopiedId] = useState<string | null>(null)
+  const itemsPerPage = 15
 
   const getRowKey = (payment: PaymentRow) => `${payment.origin}:${payment.id}`
 
@@ -48,7 +54,10 @@ const PaymentsTable = ({ pixPayments, cardPayments, onRefresh }: PaymentsTablePr
           status,
           created_at: p.created_at,
           expires_at: p.expires_at ?? null,
-          origin: 'pix'
+          origin: 'pix',
+          payment_id: p.payment_id || p.id,
+          payment_confirmed: p.payment_confirmed === true,
+          selected_plan: p.selected_plan || (p.amount >= 40 ? 'premium' : 'basic')
         }
       }),
       ...cardPayments.map<PaymentRow>(p => ({
@@ -59,7 +68,10 @@ const PaymentsTable = ({ pixPayments, cardPayments, onRefresh }: PaymentsTablePr
         payment_method: 'card',
         status: p.payment_confirmed === true ? 'paid' : 'pending',
         created_at: p.created_at,
-        origin: 'card'
+        origin: 'card',
+        payment_id: p.payment_id || p.id,
+        payment_confirmed: p.payment_confirmed === true,
+        selected_plan: p.selected_plan || (p.amount >= 40 ? 'premium' : 'basic')
       }))
     ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
   ), [pixPayments, cardPayments])
@@ -71,10 +83,42 @@ const PaymentsTable = ({ pixPayments, cardPayments, onRefresh }: PaymentsTablePr
     })
   }, [allPayments])
 
-  // Filtrar por status
-  const filteredPayments = filterStatus === 'all' 
-    ? allPayments 
-    : allPayments.filter(p => p.status === filterStatus)
+  const handleCopy = (text: string, id: string) => {
+    navigator.clipboard.writeText(text)
+    setCopiedId(id)
+    setTimeout(() => setCopiedId(null), 1500)
+  }
+
+  const handleTogglePayment = async (payment: PaymentRow) => {
+    if (!payment.payment_id) return
+    setUpdatingPayment(payment.payment_id)
+    try {
+      await updateLeadPaymentStatus(payment.payment_id, !payment.payment_confirmed)
+      onRefresh()
+    } finally {
+      setUpdatingPayment(null)
+    }
+  }
+
+  const getPlanLabel = (payment: PaymentRow) => {
+    if (payment.selected_plan === 'premium') return 'Vitalício'
+    if (payment.selected_plan === 'basic') return 'Completa'
+    if (payment.amount >= 40) return 'Vitalício'
+    return 'Completa'
+  }
+
+  // Filtrar por status e busca
+  const filteredPayments = useMemo(() => {
+    let result = filterStatus === 'all' ? allPayments : allPayments.filter(p => p.status === filterStatus)
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase().trim()
+      result = result.filter(p =>
+        p.whatsapp?.toLowerCase().includes(q) ||
+        p.nome?.toLowerCase().includes(q)
+      )
+    }
+    return result
+  }, [allPayments, filterStatus, searchQuery])
 
   // Paginação
   const totalPages = Math.ceil(filteredPayments.length / itemsPerPage)
@@ -169,58 +213,34 @@ const PaymentsTable = ({ pixPayments, cardPayments, onRefresh }: PaymentsTablePr
 
   return (
     <div className="space-y-4">
-      {/* Filtros */}
-      <div className="flex flex-wrap items-center gap-3">
-        <button
-          onClick={() => setFilterStatus('all')}
-          className={`rounded-full border px-4 py-2 text-sm font-semibold transition-colors ${
-            filterStatus === 'all'
-              ? 'border-rose-200 bg-rose-500 text-white shadow-sm shadow-rose-200/60'
-              : 'border-rose-100 bg-white text-rose-400 hover:bg-rose-50'
-          }`}
-        >
-          Todos ({allPayments.length})
-        </button>
-        <button
-          onClick={() => setFilterStatus('paid')}
-          className={`rounded-full border px-4 py-2 text-sm font-semibold transition-colors ${
-            filterStatus === 'paid'
-              ? 'border-emerald-200 bg-emerald-500 text-white shadow-sm shadow-emerald-200/50'
-              : 'border-emerald-100 bg-white text-emerald-500 hover:bg-emerald-50'
-          }`}
-        >
-          Pagos ({allPayments.filter(p => p.status === 'paid').length})
-        </button>
-        <button
-          onClick={() => setFilterStatus('pending')}
-          className={`rounded-full border px-4 py-2 text-sm font-semibold transition-colors ${
-            filterStatus === 'pending'
-              ? 'border-amber-200 bg-amber-500 text-white shadow-sm shadow-amber-200/50'
-              : 'border-amber-100 bg-white text-amber-500 hover:bg-amber-50'
-          }`}
-        >
-          Pendentes ({allPayments.filter(p => p.status === 'pending').length})
-        </button>
-        <button
-          onClick={() => setFilterStatus('failed')}
-          className={`rounded-full border px-4 py-2 text-sm font-semibold transition-colors ${
-            filterStatus === 'failed'
-              ? 'border-rose-200 bg-rose-500 text-white shadow-sm shadow-rose-200/60'
-              : 'border-rose-100 bg-white text-rose-500 hover:bg-rose-50'
-          }`}
-        >
-          Falhados ({allPayments.filter(p => p.status === 'failed').length})
-        </button>
-        <button
-          onClick={() => setFilterStatus('expired')}
-          className={`rounded-full border px-4 py-2 text-sm font-semibold transition-colors ${
-            filterStatus === 'expired'
-              ? 'border-slate-200 bg-slate-600 text-white shadow-sm shadow-slate-300/60'
-              : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'
-          }`}
-        >
-          Expirados ({allPayments.filter(p => p.status === 'expired').length})
-        </button>
+      {/* Search + Filtros */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="relative flex-1 max-w-sm">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => { setSearchQuery(e.target.value); setCurrentPage(1) }}
+            placeholder="Buscar por WhatsApp ou nome..."
+            className="w-full rounded-xl border border-rose-100 bg-white py-2.5 pl-10 pr-4 text-sm text-slate-600 placeholder-slate-400 shadow-inner focus:border-rose-300 focus:outline-none focus:ring-2 focus:ring-rose-200"
+          />
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          {([
+            { key: 'all' as const, label: 'Todos', count: allPayments.length, colors: 'border-rose-200 bg-rose-500 text-white', inactiveColors: 'border-rose-100 bg-white text-rose-400 hover:bg-rose-50' },
+            { key: 'paid' as const, label: 'Pagos', count: allPayments.filter(p => p.status === 'paid').length, colors: 'border-emerald-200 bg-emerald-500 text-white', inactiveColors: 'border-emerald-100 bg-white text-emerald-500 hover:bg-emerald-50' },
+            { key: 'pending' as const, label: 'Pendentes', count: allPayments.filter(p => p.status === 'pending').length, colors: 'border-amber-200 bg-amber-500 text-white', inactiveColors: 'border-amber-100 bg-white text-amber-500 hover:bg-amber-50' },
+            { key: 'expired' as const, label: 'Expirados', count: allPayments.filter(p => p.status === 'expired').length, colors: 'border-slate-200 bg-slate-600 text-white', inactiveColors: 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50' },
+          ]).map(f => (
+            <button
+              key={f.key}
+              onClick={() => { setFilterStatus(f.key); setCurrentPage(1) }}
+              className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition-colors ${filterStatus === f.key ? f.colors : f.inactiveColors}`}
+            >
+              {f.label} ({f.count})
+            </button>
+          ))}
+        </div>
       </div>
 
       {selectedRows.length > 0 && (
@@ -253,6 +273,7 @@ const PaymentsTable = ({ pixPayments, cardPayments, onRefresh }: PaymentsTablePr
               <th className="py-4 px-4 text-left text-sm font-semibold text-slate-400">WhatsApp</th>
               <th className="py-4 px-4 text-left text-sm font-semibold text-slate-400">Nome</th>
               <th className="py-4 px-4 text-center text-sm font-semibold text-slate-400">Método</th>
+              <th className="py-4 px-4 text-center text-sm font-semibold text-slate-400">Plano</th>
               <th className="py-4 px-4 text-right text-sm font-semibold text-slate-400">Valor</th>
               <th className="py-4 px-4 text-center text-sm font-semibold text-slate-400">Status</th>
               <th className="py-4 px-4 text-left text-sm font-semibold text-slate-400">Data</th>
@@ -262,8 +283,10 @@ const PaymentsTable = ({ pixPayments, cardPayments, onRefresh }: PaymentsTablePr
           <tbody>
             {currentPayments.length === 0 ? (
               <tr>
-                <td colSpan={8} className="py-8 text-center text-slate-400">
-                  Nenhum pagamento encontrado
+                <td colSpan={9} className="py-12 text-center text-slate-400">
+                  {searchQuery || filterStatus !== 'all'
+                    ? 'Nenhum pagamento encontrado com os filtros aplicados'
+                    : 'Nenhum pagamento encontrado'}
                 </td>
               </tr>
             ) : (
@@ -283,9 +306,20 @@ const PaymentsTable = ({ pixPayments, cardPayments, onRefresh }: PaymentsTablePr
                     />
                   </td>
                   <td className="py-4 px-4">
-                    <span className="rounded-lg bg-rose-50 px-3 py-1 font-mono text-sm font-medium text-rose-500">
-                      {payment.whatsapp}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="rounded-lg bg-rose-50 px-3 py-1 font-mono text-sm font-medium text-rose-500">
+                        {payment.whatsapp}
+                      </span>
+                      {payment.whatsapp !== '-' && (
+                        <button
+                          onClick={() => handleCopy(payment.whatsapp, `pay-${rowKey}`)}
+                          className="rounded p-1 text-slate-400 transition-colors hover:bg-rose-50 hover:text-rose-500"
+                          title="Copiar"
+                        >
+                          {copiedId === `pay-${rowKey}` ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+                        </button>
+                      )}
+                    </div>
                   </td>
                   <td className="py-4 px-4 text-sm font-medium text-slate-500">
                     {payment.nome || '-'}
@@ -303,6 +337,15 @@ const PaymentsTable = ({ pixPayments, cardPayments, onRefresh }: PaymentsTablePr
                       </span>
                     )}
                   </td>
+                  <td className="py-4 px-4 text-center">
+                    <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
+                      getPlanLabel(payment) === 'Vitalício'
+                        ? 'bg-purple-50 text-purple-600'
+                        : 'bg-blue-50 text-blue-600'
+                    }`}>
+                      {getPlanLabel(payment)}
+                    </span>
+                  </td>
                   <td className="py-4 px-4 text-right text-sm font-semibold text-slate-600">
                     R$ {payment.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                   </td>
@@ -313,14 +356,34 @@ const PaymentsTable = ({ pixPayments, cardPayments, onRefresh }: PaymentsTablePr
                     {new Date(payment.created_at).toLocaleString('pt-BR')}
                   </td>
                   <td className="py-4 px-4 text-center">
-                    <button
-                      onClick={() => handleDelete([rowKey])}
-                      disabled={isDeleting}
-                      className="inline-flex items-center gap-1 rounded-full bg-white px-3 py-1 text-xs font-semibold text-rose-500 shadow-sm ring-1 ring-inset ring-rose-100 transition-colors hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                      Excluir
-                    </button>
+                    <div className="flex flex-wrap items-center justify-center gap-2">
+                      {payment.payment_id && (
+                        <button
+                          onClick={() => handleTogglePayment(payment)}
+                          disabled={updatingPayment === payment.payment_id}
+                          className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${
+                            payment.payment_confirmed
+                              ? 'bg-rose-50 text-rose-500 hover:bg-rose-100'
+                              : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
+                          } disabled:cursor-not-allowed disabled:opacity-60`}
+                        >
+                          {updatingPayment === payment.payment_id ? (
+                            <Loader2 className="mx-auto h-4 w-4 animate-spin" />
+                          ) : payment.payment_confirmed ? (
+                            'Pendente'
+                          ) : (
+                            'Pago'
+                          )}
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleDelete([rowKey])}
+                        disabled={isDeleting}
+                        className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1.5 text-xs font-semibold text-rose-500 shadow-sm ring-1 ring-inset ring-rose-100 transition-colors hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
                   </td>
                 </tr>
                 )
