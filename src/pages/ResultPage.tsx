@@ -1,20 +1,9 @@
- import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  AlertTriangle,
-  ArrowRight,
-  CheckCircle,
-  Eye,
-  FileDown,
-  FileSpreadsheet,
-  FileText,
-  Image,
-  MessageCircle,
-  Phone,
-  Shield,
-  Sparkles,
-  Users
+  AlertTriangle, ArrowRight, CheckCircle, Clock, Eye, FileDown,
+  FileSpreadsheet, FileText, Image, MessageCircle, Phone, Shield,
+  Sparkles, Users, TrendingUp, Camera, Video, Trash2, User
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
 import { useMetaPixel } from '../hooks/useMetaPixel'
@@ -54,172 +43,37 @@ interface AnalysisData {
 interface SectionConfig {
   id: SectionKey
   label: string
-  description: string
   icon: LucideIcon
 }
 
 const SECTION_CONFIG: SectionConfig[] = [
-  {
-    id: 'overview',
-    label: 'Resumo geral',
-    description: 'Panorama da análise e nível de risco',
-    icon: Sparkles
-  },
-  {
-    id: 'messages',
-    label: 'Mensagens suspeitas',
-    description: 'Conversas que chamaram atenção na auditoria',
-    icon: MessageCircle
-  },
-  {
-    id: 'contacts',
-    label: 'Contatos suspeitos',
-    description: 'Pessoas envolvidas em interações críticas',
-    icon: Users
-  },
-  {
-    id: 'media',
-    label: 'Mídias e arquivos',
-    description: 'Fotos, vídeos e itens deletados encontrados',
-    icon: Image
-  },
-  {
-    id: 'recommendations',
-    label: 'Próximos passos',
-    description: 'Orientações estratégicas após a análise',
-    icon: CheckCircle
-  }
+  { id: 'overview', label: 'Resumo geral', icon: TrendingUp },
+  { id: 'messages', label: 'Mensagens', icon: MessageCircle },
+  { id: 'contacts', label: 'Contatos', icon: Users },
+  { id: 'media', label: 'Mídias', icon: Image },
+  { id: 'recommendations', label: 'Recomendações', icon: CheckCircle }
 ]
 
 const riskLabel = (level: string) => {
   switch (level) {
-    case 'high':
-      return 'Alto risco'
-    case 'medium':
-      return 'Risco moderado'
-    default:
-      return 'Baixo risco'
+    case 'high': return 'Alto risco'
+    case 'medium': return 'Risco moderado'
+    default: return 'Baixo risco'
   }
 }
 
-const OVERLAY_POSITIONS = [
-  '-left-32 top-12 h-60 w-60',
-  'right-0 top-40 h-64 w-64',
-  '-bottom-16 left-1/4 h-72 w-72'
-]
-
-const OVERLAY_BLURS = ['blur-[140px]', 'blur-[160px]', 'blur-[180px]']
+const riskColor = (level: string) => {
+  switch (level) {
+    case 'high': return { bg: 'bg-rose-500', text: 'text-rose-600', light: 'bg-rose-50', border: 'border-rose-200', ring: 'ring-rose-500/20', gradient: 'from-rose-500 to-red-600' }
+    case 'medium': return { bg: 'bg-amber-500', text: 'text-amber-600', light: 'bg-amber-50', border: 'border-amber-200', ring: 'ring-amber-500/20', gradient: 'from-amber-400 to-orange-500' }
+    default: return { bg: 'bg-emerald-500', text: 'text-emerald-600', light: 'bg-emerald-50', border: 'border-emerald-200', ring: 'ring-emerald-500/20', gradient: 'from-emerald-400 to-teal-500' }
+  }
+}
 
 const planLabel = (planId?: PlanId) => {
   if (planId === 'premium') return 'Plano Vitalício'
   if (planId === 'basic') return 'Análise Completa'
   return 'Plano não informado'
-}
-
-const PLAN_THEMES: Record<PlanId, {
-  pageBackground: string
-  overlayBlobs: string[]
-  sidebarBadge: string
-  navActive: string
-  navInactive: string
-  exportHover: string
-  exportTag: string
-  hintCard: string
-  hintText: string
-  heroChip: string
-  heroStatCard: string
-  heroAccentText: string
-  heroBadge: string
-  heroProgressGradient: { high: string; medium: string; low: string }
-  statCard: string
-  statLabel: string
-  messageCard: string
-  messageBadge: string
-  messagePill: string
-  sectionBadgeMessages: string
-  sectionBadgeContacts: string
-  sectionBadgeMedia: string
-  sectionBadgeRecommendations: string
-  recommendationCard: string
-  calloutSection: string
-  calloutButton: string
-  calloutButtonIcon: string
-  planSpotlight: string
-  planSpotlightAccent: string
-  planSpotlightTag: string
-}> = {
-  basic: {
-    pageBackground: 'bg-gradient-to-br from-sky-50 via-white to-slate-100 text-slate-900',
-    overlayBlobs: ['bg-sky-200/40', 'bg-cyan-100/40', 'bg-emerald-100/40'],
-    sidebarBadge: 'border-sky-200 bg-sky-50 text-sky-700',
-    navActive: 'border-sky-300 bg-white text-sky-700 shadow-sm shadow-sky-200/60',
-    navInactive: 'border-transparent bg-transparent text-slate-500 hover:border-sky-200 hover:bg-white/80 hover:text-slate-900',
-    exportHover: 'hover:border-sky-200 hover:bg-white/90',
-    exportTag: 'text-sky-600',
-    hintCard: 'border-sky-100 bg-sky-50 text-sky-700',
-    hintText: 'text-sky-700',
-    heroChip: 'border-sky-200 bg-white text-slate-600',
-    heroStatCard: 'border-sky-100 bg-white text-slate-600',
-    heroAccentText: 'text-sky-700',
-    heroBadge: 'bg-sky-100 text-sky-700',
-    heroProgressGradient: {
-      high: 'from-rose-400 via-rose-500 to-rose-600',
-      medium: 'from-amber-400 via-amber-500 to-orange-500',
-      low: 'from-emerald-400 via-teal-400 to-sky-500'
-    },
-    statCard: 'border-slate-200 bg-white',
-    statLabel: 'text-slate-500',
-    messageCard: 'border-sky-100 bg-white',
-    messageBadge: 'border-sky-200 bg-sky-50 text-sky-700',
-    messagePill: 'border-sky-200 bg-sky-100 text-sky-700',
-    sectionBadgeMessages: 'border-sky-200 bg-sky-50 text-sky-700',
-    sectionBadgeContacts: 'border-indigo-200 bg-indigo-50 text-indigo-700',
-    sectionBadgeMedia: 'border-amber-200 bg-amber-50 text-amber-700',
-    sectionBadgeRecommendations: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-    recommendationCard: 'border-emerald-100 bg-white',
-    calloutSection: 'border-slate-200 bg-white',
-    calloutButton: 'bg-sky-600 hover:bg-sky-700 text-white shadow-lg shadow-sky-200/70',
-    calloutButtonIcon: 'text-sky-600',
-    planSpotlight: 'border-sky-100 bg-white',
-    planSpotlightAccent: 'text-sky-700',
-    planSpotlightTag: 'bg-sky-100 text-sky-700'
-  },
-  premium: {
-    pageBackground: 'bg-gradient-to-br from-amber-50 via-white to-stone-100 text-slate-900',
-    overlayBlobs: ['bg-amber-200/40', 'bg-rose-100/40', 'bg-amber-100/30'],
-    sidebarBadge: 'border-amber-200 bg-amber-50 text-amber-700',
-    navActive: 'border-amber-300 bg-white text-amber-700 shadow-sm shadow-amber-200/60',
-    navInactive: 'border-transparent bg-transparent text-slate-500 hover:border-amber-200 hover:bg-white/80 hover:text-slate-900',
-    exportHover: 'hover:border-amber-200 hover:bg-white/90',
-    exportTag: 'text-amber-600',
-    hintCard: 'border-amber-100 bg-amber-50 text-amber-700',
-    hintText: 'text-amber-700',
-    heroChip: 'border-amber-200 bg-white text-stone-600',
-    heroStatCard: 'border-amber-100 bg-white text-stone-600',
-    heroAccentText: 'text-amber-700',
-    heroBadge: 'bg-amber-100 text-amber-700',
-    heroProgressGradient: {
-      high: 'from-amber-500 via-orange-500 to-amber-600',
-      medium: 'from-amber-400 via-amber-500 to-rose-500',
-      low: 'from-emerald-400 via-amber-400 to-orange-400'
-    },
-    statCard: 'border-stone-200 bg-white',
-    statLabel: 'text-stone-500',
-    messageCard: 'border-amber-100 bg-white',
-    messageBadge: 'border-amber-200 bg-amber-50 text-amber-700',
-    messagePill: 'border-amber-200 bg-amber-100 text-amber-700',
-    sectionBadgeMessages: 'border-amber-200 bg-amber-50 text-amber-700',
-    sectionBadgeContacts: 'border-indigo-200 bg-indigo-50 text-indigo-700',
-    sectionBadgeMedia: 'border-amber-200 bg-amber-50 text-amber-700',
-    sectionBadgeRecommendations: 'border-emerald-200 bg-emerald-50 text-emerald-700',
-    recommendationCard: 'border-emerald-100 bg-white',
-    calloutSection: 'border-amber-200 bg-white',
-    calloutButton: 'bg-amber-600 hover:bg-amber-700 text-white shadow-lg shadow-amber-200/70',
-    calloutButtonIcon: 'text-amber-600',
-    planSpotlight: 'border-amber-100 bg-white',
-    planSpotlightAccent: 'text-amber-700',
-    planSpotlightTag: 'bg-amber-100 text-amber-700'
-  }
 }
 
 const ResultPage = () => {
@@ -229,18 +83,13 @@ const ResultPage = () => {
   const [analysisData, setAnalysisData] = useState<AnalysisData | null>(null)
   const [activeSection, setActiveSection] = useState<SectionKey>('overview')
   const [isExporting, setIsExporting] = useState<'pdf' | 'csv' | 'md' | null>(null)
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const sectionRefs = useRef<Record<SectionKey, HTMLDivElement | null>>({
-    overview: null,
-    messages: null,
-    contacts: null,
-    media: null,
-    recommendations: null
+    overview: null, messages: null, contacts: null, media: null, recommendations: null
   })
 
   const registerSectionRef = useCallback(
-    (key: SectionKey) => (node: HTMLDivElement | null) => {
-      sectionRefs.current[key] = node
-    },
+    (key: SectionKey) => (node: HTMLDivElement | null) => { sectionRefs.current[key] = node },
     []
   )
 
@@ -249,103 +98,56 @@ const ResultPage = () => {
     const paymentConfirmed = localStorage.getItem('paymentConfirmed')
     const paymentTimestamp = localStorage.getItem('paymentTimestamp')
 
-    if (!paymentConfirmed || paymentConfirmed !== 'true') {
-      navigate('/')
-      return
-    }
+    if (!paymentConfirmed || paymentConfirmed !== 'true') { navigate('/'); return }
 
     if (paymentTimestamp) {
       const timestamp = Number(paymentTimestamp)
-      const oneHour = 60 * 60 * 1000
-      if (Date.now() - timestamp > oneHour) {
+      if (Date.now() - timestamp > 60 * 60 * 1000) {
         localStorage.removeItem('paymentConfirmed')
         localStorage.removeItem('paymentTimestamp')
         localStorage.removeItem('finalResults')
-        navigate('/')
-        return
+        navigate('/'); return
       }
     }
 
     const results = localStorage.getItem('finalResults')
     const data = localStorage.getItem('analysisData')
-
-    if (!results || !data) {
-      navigate('/')
-      return
-    }
+    if (!results || !data) { navigate('/'); return }
 
     try {
       setFinalResults(JSON.parse(results))
       setAnalysisData(JSON.parse(data))
-    } catch (error) {
-      navigate('/')
-      return
-    }
+    } catch { navigate('/'); return }
 
-    trackEvent('ViewContent', {
-      content_name: 'Analysis Results',
-      content_category: 'Results Page'
-    })
+    trackEvent('ViewContent', { content_name: 'Analysis Results', content_category: 'Results Page' })
   }, [navigate, trackEvent])
 
   useEffect(() => {
     const observer = new IntersectionObserver(
-      entries => {
-        entries.forEach(entry => {
-          if (entry.isIntersecting) {
-            setActiveSection(entry.target.getAttribute('data-section') as SectionKey)
-          }
-        })
-      },
-      {
-        rootMargin: '-30% 0px -50% 0px',
-        threshold: 0.3
-      }
+      entries => { entries.forEach(entry => { if (entry.isIntersecting) setActiveSection(entry.target.getAttribute('data-section') as SectionKey) }) },
+      { rootMargin: '-20% 0px -60% 0px', threshold: 0.2 }
     )
-
     const elements = Object.values(sectionRefs.current).filter(Boolean) as HTMLDivElement[]
     elements.forEach(el => observer.observe(el))
-
-    return () => {
-      elements.forEach(el => observer.unobserve(el))
-    }
+    return () => { elements.forEach(el => observer.unobserve(el)) }
   }, [finalResults])
 
   const stats = useMemo(() => {
     if (!finalResults) return null
-    const mediaTotal = finalResults.mediaAnalysis.photos + finalResults.mediaAnalysis.videos
     return {
       messages: finalResults.detailedMessages.length,
       contacts: finalResults.suspiciousContacts.length,
-      mediaTotal,
+      mediaTotal: finalResults.mediaAnalysis.photos + finalResults.mediaAnalysis.videos,
       deleted: finalResults.mediaAnalysis.deletedMedia
     }
   }, [finalResults])
 
   const planId: PlanId = analysisData?.selectedPlanId ?? 'basic'
-  const theme = PLAN_THEMES[planId]
-  const riskProgressClass = finalResults
-    ? `bg-gradient-to-r ${
-        finalResults.riskScore >= 75
-          ? theme.heroProgressGradient.high
-          : finalResults.riskScore >= 45
-          ? theme.heroProgressGradient.medium
-          : theme.heroProgressGradient.low
-      }`
-    : 'bg-slate-300'
+  const risk = finalResults ? riskColor(finalResults.riskLevel) : riskColor('low')
 
-  const planBenefits =
-    planId === 'premium'
-      ? [
-          'Acompanhamento vitalício sem custos adicionais para novas auditorias.',
-          'Atualizações automáticas sempre que novas evidências forem detectadas.',
-          'Suporte prioritário e consultoria estratégica sob demanda.'
-        ]
-      : [
-          'Cobertura completa dos últimos 30 dias de conversas, mídias e contatos.',
-          'Exportações em PDF, CSV e Markdown prontas para arquivamento seguro.',
-          'Suporte dedicado por 7 dias para orientar próximos passos com segurança.'
-        ]
+  const planBenefits = planId === 'premium'
+    ? ['Acompanhamento vitalício sem custos adicionais.', 'Atualizações automáticas de novas evidências.', 'Suporte prioritário sob demanda.']
+    : ['Cobertura completa dos últimos 30 dias.', 'Exportações em PDF, CSV e Markdown.', 'Suporte dedicado por 7 dias.']
 
   const handleNewAnalysis = () => {
     localStorage.removeItem('paymentConfirmed')
@@ -358,33 +160,24 @@ const ResultPage = () => {
 
   const handleExport = async (type: 'pdf' | 'csv' | 'md') => {
     if (!analysisData || !finalResults) return
-
-    trackEvent('InitiateCheckout', {
-      content_name: `Export ${type.toUpperCase()} Report`,
-      content_category: 'Results Export'
-    })
+    trackEvent('InitiateCheckout', { content_name: `Export ${type.toUpperCase()} Report`, content_category: 'Results Export' })
 
     if (type === 'pdf') {
       setIsExporting('pdf')
-      setTimeout(() => {
-        window.print()
-        setIsExporting(null)
-      }, 200)
+      setTimeout(() => { window.print(); setIsExporting(null) }, 200)
       return
     }
 
     setIsExporting(type)
     await new Promise(resolve => setTimeout(resolve, 300))
 
-    let content = ''
-    let mime = 'text/plain'
-    let extension = type
+    let content = '', mime = 'text/plain', extension = type
 
     if (type === 'csv') {
       mime = 'text/csv;charset=utf-8;'
       const header = 'tipo,descricao,contato,numero,risco\n'
       const messageRows = finalResults.detailedMessages.map(msg => `Mensagem,"${msg.replace(/"/g, '""')}",,,`)
-      const contactRows = finalResults.suspiciousContacts.map(contact => `Contato,,${contact.name},${contact.number},${contact.risk}`)
+      const contactRows = finalResults.suspiciousContacts.map(c => `Contato,,${c.name},${c.number},${c.risk}`)
       const mediaRow = `Mídias,"Fotos: ${finalResults.mediaAnalysis.photos} | Vídeos: ${finalResults.mediaAnalysis.videos}",,,`
       content = [header, ...messageRows, ...contactRows, mediaRow].join('\n')
     }
@@ -392,7 +185,7 @@ const ResultPage = () => {
     if (type === 'md') {
       mime = 'text/markdown;charset=utf-8;'
       extension = 'md'
-      content = `# Relatório detalhado\n\n- WhatsApp analisado: **${analysisData.whatsapp}**\n- Plano contratado: **${planLabel(analysisData.selectedPlanId)}**\n- Pontuação de risco: **${finalResults.riskScore}/100** (${riskLabel(finalResults.riskLevel)})\n\n## Mensagens suspeitas\n${finalResults.detailedMessages.length ? finalResults.detailedMessages.map(msg => `- ${msg}`).join('\n') : '- Nenhuma mensagem suspeita encontrada.'}\n\n## Contatos suspeitos\n${finalResults.suspiciousContacts.length ? finalResults.suspiciousContacts.map(contact => `- ${contact.name} (${contact.number}) • Risco ${contact.risk}`).join('\n') : '- Nenhum contato suspeito identificado.'}\n\n## Estatísticas de mídias\n- Fotos suspeitas: ${finalResults.mediaAnalysis.photos}\n- Vídeos suspeitos: ${finalResults.mediaAnalysis.videos}\n- Itens deletados: ${finalResults.mediaAnalysis.deletedMedia}`
+      content = `# Relatório detalhado\n\n- WhatsApp: **${analysisData.whatsapp}**\n- Plano: **${planLabel(analysisData.selectedPlanId)}**\n- Risco: **${finalResults.riskScore}/100** (${riskLabel(finalResults.riskLevel)})\n\n## Mensagens suspeitas\n${finalResults.detailedMessages.length ? finalResults.detailedMessages.map(msg => `- ${msg}`).join('\n') : '- Nenhuma encontrada.'}\n\n## Contatos suspeitos\n${finalResults.suspiciousContacts.length ? finalResults.suspiciousContacts.map(c => `- ${c.name} (${c.number}) • Risco ${c.risk}`).join('\n') : '- Nenhum identificado.'}\n\n## Mídias\n- Fotos: ${finalResults.mediaAnalysis.photos}\n- Vídeos: ${finalResults.mediaAnalysis.videos}\n- Deletados: ${finalResults.mediaAnalysis.deletedMedia}`
     }
 
     const blob = new Blob([content], { type: mime })
@@ -409,247 +202,253 @@ const ResultPage = () => {
 
   const scrollToSection = (section: SectionKey) => {
     const target = sectionRefs.current[section]
-    if (target) {
-      target.scrollIntoView({ behavior: 'smooth', block: 'start' })
-    }
+    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    setMobileMenuOpen(false)
   }
 
   if (!finalResults || !analysisData || !stats) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-100">
-        <div className="rounded-3xl border border-slate-200 bg-white px-10 py-8 text-center text-slate-600 shadow-xl">
-          Carregando relatório completo...
+      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-rose-200 border-t-rose-500" />
+          <p className="text-sm font-medium text-slate-500">Carregando relatório...</p>
         </div>
       </div>
     )
   }
 
+  const riskPercent = Math.min(finalResults.riskScore, 100)
+  const circumference = 2 * Math.PI * 54
+  const strokeDashoffset = circumference - (riskPercent / 100) * circumference
+
   return (
-    <div className={`relative min-h-screen overflow-hidden ${theme.pageBackground}`}>
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        {theme.overlayBlobs.map((blobColor, index) => (
-          <div
-            key={`overlay-${index}`}
-            className={`absolute ${OVERLAY_POSITIONS[index % OVERLAY_POSITIONS.length]} rounded-full ${blobColor} ${OVERLAY_BLURS[index % OVERLAY_BLURS.length]}`}
-          />
-        ))}
+    <div className="min-h-screen bg-slate-50">
+      {/* Mobile nav toggle */}
+      <div className="sticky top-0 z-50 border-b border-slate-200 bg-white/95 backdrop-blur lg:hidden">
+        <div className="flex items-center justify-between px-4 py-3">
+          <div className="flex items-center gap-2">
+            <Shield className="h-5 w-5 text-rose-500" />
+            <span className="text-sm font-bold text-slate-900">Relatório</span>
+          </div>
+          <button onClick={() => setMobileMenuOpen(!mobileMenuOpen)} className="rounded-lg bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700">
+            {mobileMenuOpen ? 'Fechar' : 'Seções'}
+          </button>
+        </div>
+        {mobileMenuOpen && (
+          <div className="border-t border-slate-100 bg-white px-4 py-3">
+            <nav className="flex flex-wrap gap-2">
+              {SECTION_CONFIG.map(s => (
+                <button key={s.id} onClick={() => scrollToSection(s.id)}
+                  className={`rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${activeSection === s.id ? 'bg-rose-500 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                  {s.label}
+                </button>
+              ))}
+            </nav>
+          </div>
+        )}
       </div>
 
-      <div className="relative mx-auto flex w-full max-w-7xl flex-col gap-10 px-4 pb-20 pt-12 lg:flex-row">
-        <aside className="sticky top-10 h-fit w-full shrink-0 rounded-3xl border border-slate-200/70 bg-white/80 shadow-xl backdrop-blur lg:w-72">
-          <div className="space-y-8 p-6">
-            <header className="space-y-4">
-              <div className={`inline-flex items-center gap-2 rounded-full border px-4 py-1 text-xs font-semibold ${theme.sidebarBadge}`}>
-                <Shield className="h-4 w-4" /> Relatório exclusivo
+      <div className="mx-auto flex w-full max-w-[1400px] gap-0 lg:gap-8">
+        {/* Sidebar */}
+        <aside className="hidden lg:block">
+          <div className="sticky top-6 w-64 space-y-5 py-6 pl-6">
+            {/* Profile card */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 items-center justify-center rounded-full bg-rose-100">
+                  <User className="h-5 w-5 text-rose-600" />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-bold text-slate-900">{analysisData.nome ?? 'Confidencial'}</p>
+                  <p className="truncate text-xs text-slate-500">{analysisData.whatsapp}</p>
+                </div>
               </div>
-              <div>
-                <h1 className="text-2xl font-bold text-slate-900">Resultado da análise</h1>
-                <p className="text-sm text-slate-500">{new Date().toLocaleDateString('pt-BR')}</p>
+              <div className="mt-3 flex items-center gap-2">
+                <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase ${risk.light} ${risk.text} ${risk.border} border`}>
+                  <AlertTriangle className="h-3 w-3" /> {riskLabel(finalResults.riskLevel)}
+                </span>
               </div>
-            </header>
+            </div>
 
-            <section className="space-y-2">
-              <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Sessões</p>
-              <nav className="space-y-2">
-                {SECTION_CONFIG.map(section => {
-                  const Icon = section.icon
-                  const isActive = activeSection === section.id
-                  return (
-                    <button
-                      key={section.id}
-                      onClick={() => {
-                        setActiveSection(section.id)
-                        scrollToSection(section.id)
-                      }}
-                      className={`group flex w-full items-center gap-3 rounded-2xl border px-4 py-3 text-left text-sm font-semibold transition-all ${isActive ? theme.navActive : theme.navInactive}`}
-                    >
-                      <Icon className={`h-4 w-4 ${isActive ? 'text-current' : 'text-slate-400 group-hover:text-current'}`} />
-                      <div>
-                        <p>{section.label}</p>
-                        <p className="text-xs font-normal text-slate-400">{section.description}</p>
-                      </div>
-                    </button>
-                  )
-                })}
-              </nav>
-            </section>
+            {/* Nav */}
+            <nav className="space-y-1">
+              {SECTION_CONFIG.map(s => {
+                const Icon = s.icon
+                const isActive = activeSection === s.id
+                return (
+                  <button key={s.id} onClick={() => scrollToSection(s.id)}
+                    className={`flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-left text-[13px] font-semibold transition-all ${isActive ? 'bg-rose-50 text-rose-700 shadow-sm' : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'}`}>
+                    <Icon className={`h-4 w-4 ${isActive ? 'text-rose-500' : 'text-slate-400'}`} />
+                    {s.label}
+                  </button>
+                )
+              })}
+            </nav>
 
-            <section className="space-y-3">
-              <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Exportar</p>
-              <div className="space-y-2">
-                <button
-                  onClick={() => handleExport('pdf')}
-                  className={`flex w-full items-center justify-between rounded-2xl border border-slate-200/70 bg-white/80 px-4 py-3 text-sm font-semibold text-slate-700 transition ${theme.exportHover} disabled:cursor-not-allowed disabled:opacity-60`}
-                  disabled={isExporting === 'pdf'}
-                >
-                  <span className="inline-flex items-center gap-2"><FileDown className="h-4 w-4" /> Relatório PDF</span>
-                  <span className={`text-xs ${theme.exportTag}`}>{isExporting === 'pdf' ? 'Abrindo...' : 'Imprimir'}</span>
+            {/* Export */}
+            <div className="space-y-2">
+              <p className="px-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">Exportar</p>
+              {([
+                { type: 'pdf' as const, label: 'PDF', icon: FileDown, action: 'Imprimir' },
+                { type: 'csv' as const, label: 'CSV', icon: FileSpreadsheet, action: 'Download' },
+                { type: 'md' as const, label: 'Markdown', icon: FileText, action: 'Download' },
+              ]).map(exp => (
+                <button key={exp.type} onClick={() => handleExport(exp.type)} disabled={isExporting === exp.type}
+                  className="flex w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-[13px] font-medium text-slate-700 transition hover:border-rose-200 hover:bg-rose-50 disabled:opacity-50">
+                  <span className="flex items-center gap-2"><exp.icon className="h-3.5 w-3.5 text-slate-400" />{exp.label}</span>
+                  <span className="text-[11px] text-rose-500">{isExporting === exp.type ? '...' : exp.action}</span>
                 </button>
-                <button
-                  onClick={() => handleExport('csv')}
-                  className={`flex w-full items-center justify-between rounded-2xl border border-slate-200/70 bg-white/80 px-4 py-3 text-sm font-semibold text-slate-700 transition ${theme.exportHover} disabled:cursor-not-allowed disabled:opacity-60`}
-                  disabled={isExporting === 'csv'}
-                >
-                  <span className="inline-flex items-center gap-2"><FileSpreadsheet className="h-4 w-4" /> Exportar CSV</span>
-                  <span className={`text-xs ${theme.exportTag}`}>{isExporting === 'csv' ? 'Gerando...' : 'Download'}</span>
-                </button>
-                <button
-                  onClick={() => handleExport('md')}
-                  className={`flex w-full items-center justify-between rounded-2xl border border-slate-200/70 bg-white/80 px-4 py-3 text-sm font-semibold text-slate-700 transition ${theme.exportHover} disabled:cursor-not-allowed disabled:opacity-60`}
-                  disabled={isExporting === 'md'}
-                >
-                  <span className="inline-flex items-center gap-2"><FileText className="h-4 w-4" /> Exportar Markdown</span>
-                  <span className={`text-xs ${theme.exportTag}`}>{isExporting === 'md' ? 'Gerando...' : 'Download'}</span>
-                </button>
+              ))}
+            </div>
+
+            {/* Plan badge */}
+            <div className="rounded-2xl border border-rose-100 bg-gradient-to-br from-rose-50 to-white p-4">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-4 w-4 text-rose-500" />
+                <span className="text-xs font-bold text-rose-700">{planLabel(planId)}</span>
               </div>
-              <p className={`rounded-2xl border px-4 py-3 text-xs ${theme.hintCard}`}>
-                Exportações ficam salvas localmente. Guarde com sigilo e não compartilhe sem proteção.
+              <p className="mt-1.5 text-[11px] leading-relaxed text-slate-500">
+                Relatório gerado em {new Date().toLocaleDateString('pt-BR')}
               </p>
-            </section>
-
-            <section className="space-y-3 rounded-2xl border border-slate-200/70 bg-white/85 p-4 text-sm text-slate-600 shadow-sm">
-              <div className="space-y-1">
-                <p className="text-xs uppercase tracking-[0.2em] text-slate-400">Dados analisados</p>
-                <p className="font-semibold text-slate-900">{analysisData.nome ?? 'Contato confidencial'}</p>
-                <p className="text-xs text-slate-500">WhatsApp: {analysisData.whatsapp}</p>
-              </div>
-              <div className={`mt-3 flex items-center gap-3 text-xs ${theme.hintText}`}>
-                <Sparkles className="h-4 w-4" /> Plano: {planLabel(analysisData.selectedPlanId)}
-              </div>
-            </section>
+            </div>
           </div>
         </aside>
 
-        <main className="flex-1 space-y-12">
-          <section
-            ref={registerSectionRef('overview')}
-            data-section="overview"
-            className="relative overflow-hidden rounded-3xl border border-slate-200/70 bg-white/85 p-8 shadow-xl sm:p-12"
-          >
-            <div className="absolute inset-0 bg-gradient-to-br from-white/40 via-transparent to-white/10" />
-            <div className="relative z-10 flex flex-col gap-10">
-              <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
-                <div>
-                  <div className={`inline-flex items-center gap-2 rounded-full border px-4 py-1 text-xs uppercase tracking-[0.3em] ${theme.heroChip}`}>
-                    <Sparkles className="h-4 w-4" /> Relatório finalizado
-                  </div>
-                  <h2 className="mt-4 text-4xl font-bold text-slate-900 sm:text-5xl">
-                    {analysisData.nome ? `Análise de ${analysisData.nome}` : 'Relatório confidencial'}
-                  </h2>
-                  <p className="mt-3 max-w-2xl text-base text-slate-600">
-                    Resultado completo da auditoria realizada no WhatsApp {analysisData.whatsapp}. Avaliamos conversas, contatos e mídias para entregar uma visão clara do nível de risco identificado.
-                  </p>
-                </div>
-                <div className={`rounded-3xl border px-6 py-6 text-right text-sm ${theme.heroStatCard}`}>
-                  <p className="text-xs uppercase tracking-[0.2em] text-slate-500">Pontuação de risco</p>
-                  <p className={`mt-2 text-5xl font-black ${theme.heroAccentText}`}>
-                    {finalResults.riskScore}
-                    <span className="text-2xl text-slate-400">/100</span>
-                  </p>
-                  <p className={`mt-2 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold ${theme.heroBadge}`}>
-                    <AlertTriangle className="h-4 w-4" /> {riskLabel(finalResults.riskLevel)}
-                  </p>
-                </div>
-              </div>
-
-              <div>
-                <div className="relative h-3 w-full overflow-hidden rounded-full bg-slate-200/70">
-                  <div className={`absolute inset-y-0 left-0 rounded-full ${riskProgressClass}`} style={{ width: `${Math.min(finalResults.riskScore, 100)}%` }} />
-                </div>
-                <div className="mt-3 flex justify-between text-xs text-slate-500">
-                  <span>0 - Seguro</span>
-                  <span>50 - Atenção</span>
-                  <span>100 - Crítico</span>
-                </div>
-              </div>
-
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-                <div className={`rounded-2xl border p-5 shadow-sm ${theme.statCard}`}>
-                  <p className={`text-xs uppercase tracking-[0.2em] ${theme.statLabel}`}>Mensagens</p>
-                  <p className="mt-2 text-3xl font-bold text-slate-900">{stats.messages}</p>
-                  <p className="text-sm text-slate-500">Mensagens suspeitas registradas</p>
-                </div>
-                <div className={`rounded-2xl border p-5 shadow-sm ${theme.statCard}`}>
-                  <p className={`text-xs uppercase tracking-[0.2em] ${theme.statLabel}`}>Contatos</p>
-                  <p className="mt-2 text-3xl font-bold text-slate-900">{stats.contacts}</p>
-                  <p className="text-sm text-slate-500">Contatos com comportamento crítico</p>
-                </div>
-                <div className={`rounded-2xl border p-5 shadow-sm ${theme.statCard}`}>
-                  <p className={`text-xs uppercase tracking-[0.2em] ${theme.statLabel}`}>Mídias</p>
-                  <p className="mt-2 text-3xl font-bold text-slate-900">{stats.mediaTotal}</p>
-                  <p className="text-sm text-slate-500">Fotos e vídeos suspeitos</p>
-                </div>
-                <div className={`rounded-2xl border p-5 shadow-sm ${theme.statCard}`}>
-                  <p className={`text-xs uppercase tracking-[0.2em] ${theme.statLabel}`}>Deletados</p>
-                  <p className="mt-2 text-3xl font-bold text-slate-900">{stats.deleted}</p>
-                  <p className="text-sm text-slate-500">Itens removidos recentemente</p>
-                </div>
-              </div>
-
-              <div className={`rounded-2xl border px-6 py-6 shadow-sm ${theme.planSpotlight}`}>
-                <div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
-                  <div className="space-y-3">
-                    <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${theme.planSpotlightTag}`}>
-                      <Sparkles className="h-4 w-4" /> Benefícios do plano
+        {/* Main content */}
+        <main className="min-w-0 flex-1 space-y-6 px-4 py-6 lg:pr-6 lg:pl-0">
+          {/* OVERVIEW */}
+          <section ref={registerSectionRef('overview')} data-section="overview" className="space-y-6">
+            {/* Risk score hero */}
+            <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+              <div className="flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="rounded-full bg-emerald-100 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-emerald-700">
+                      Relatório finalizado
                     </span>
-                    <h3 className={`text-2xl font-semibold ${theme.planSpotlightAccent}`}>{planLabel(planId)}</h3>
-                    <p className="text-sm text-slate-500">
-                      Você tem acesso a recursos exclusivos conforme o plano contratado. Aproveite para tirar o máximo da investigação.
-                    </p>
+                    <span className="flex items-center gap-1 text-[11px] text-slate-400">
+                      <Clock className="h-3 w-3" /> {new Date().toLocaleDateString('pt-BR')}
+                    </span>
                   </div>
-                  <ul className="space-y-3 text-sm text-slate-600">
-                    {planBenefits.map(benefit => (
-                      <li key={benefit} className="flex items-start gap-3">
-                        <CheckCircle className={`mt-0.5 h-4 w-4 ${theme.planSpotlightAccent}`} />
-                        <span>{benefit}</span>
-                      </li>
-                    ))}
-                  </ul>
+                  <h1 className="mt-3 text-2xl font-bold text-slate-900 sm:text-3xl">
+                    {analysisData.nome ? `Relatório de ${analysisData.nome}` : 'Relatório confidencial'}
+                  </h1>
+                  <p className="mt-2 max-w-xl text-sm leading-relaxed text-slate-500">
+                    Auditoria completa do WhatsApp <span className="font-semibold text-slate-700">{analysisData.whatsapp}</span>. Avaliamos conversas, contatos e mídias para identificar o nível de risco.
+                  </p>
                 </div>
+
+                {/* Risk gauge */}
+                <div className="flex flex-col items-center">
+                  <div className="relative h-32 w-32">
+                    <svg className="h-full w-full -rotate-90" viewBox="0 0 120 120">
+                      <circle cx="60" cy="60" r="54" fill="none" stroke="#f1f5f9" strokeWidth="8" />
+                      <circle cx="60" cy="60" r="54" fill="none" stroke="url(#riskGrad)" strokeWidth="8"
+                        strokeLinecap="round" strokeDasharray={circumference} strokeDashoffset={strokeDashoffset}
+                        className="transition-all duration-1000 ease-out" />
+                      <defs>
+                        <linearGradient id="riskGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                          <stop offset="0%" stopColor={finalResults.riskScore >= 75 ? '#f43f5e' : finalResults.riskScore >= 45 ? '#f59e0b' : '#10b981'} />
+                          <stop offset="100%" stopColor={finalResults.riskScore >= 75 ? '#dc2626' : finalResults.riskScore >= 45 ? '#ea580c' : '#0d9488'} />
+                        </linearGradient>
+                      </defs>
+                    </svg>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center">
+                      <span className={`text-3xl font-black ${risk.text}`}>{finalResults.riskScore}</span>
+                      <span className="text-[10px] font-semibold text-slate-400">/100</span>
+                    </div>
+                  </div>
+                  <span className={`mt-2 inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-bold ${risk.light} ${risk.text} ${risk.border}`}>
+                    <AlertTriangle className="h-3.5 w-3.5" /> {riskLabel(finalResults.riskLevel)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Progress bar */}
+              <div className="mt-6">
+                <div className="relative h-2 w-full overflow-hidden rounded-full bg-slate-100">
+                  <div className={`absolute inset-y-0 left-0 rounded-full bg-gradient-to-r ${risk.gradient} transition-all duration-1000`} style={{ width: `${riskPercent}%` }} />
+                </div>
+                <div className="mt-1.5 flex justify-between text-[10px] font-medium text-slate-400">
+                  <span>Seguro</span><span>Atenção</span><span>Crítico</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Stats grid */}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {[
+                { label: 'Mensagens', value: stats.messages, sub: 'suspeitas', icon: MessageCircle, color: 'text-rose-500', bg: 'bg-rose-50' },
+                { label: 'Contatos', value: stats.contacts, sub: 'em evidência', icon: Users, color: 'text-indigo-500', bg: 'bg-indigo-50' },
+                { label: 'Mídias', value: stats.mediaTotal, sub: 'encontradas', icon: Image, color: 'text-amber-500', bg: 'bg-amber-50' },
+                { label: 'Deletados', value: stats.deleted, sub: 'removidos', icon: Trash2, color: 'text-slate-500', bg: 'bg-slate-100' },
+              ].map(s => (
+                <div key={s.label} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <div className="flex items-center gap-2">
+                    <div className={`rounded-lg p-1.5 ${s.bg}`}><s.icon className={`h-4 w-4 ${s.color}`} /></div>
+                    <span className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">{s.label}</span>
+                  </div>
+                  <p className="mt-2 text-2xl font-bold text-slate-900">{s.value}</p>
+                  <p className="text-[11px] text-slate-400">{s.sub}</p>
+                </div>
+              ))}
+            </div>
+
+            {/* Plan benefits */}
+            <div className="rounded-2xl border border-rose-100 bg-gradient-to-r from-rose-50/80 to-white p-5 sm:p-6">
+              <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-rose-500" />
+                    <span className="text-xs font-bold uppercase tracking-widest text-rose-600">Seu plano</span>
+                  </div>
+                  <h3 className="mt-2 text-lg font-bold text-slate-900">{planLabel(planId)}</h3>
+                  <p className="mt-1 text-xs text-slate-500">Recursos inclusos na sua investigação.</p>
+                </div>
+                <ul className="space-y-2">
+                  {planBenefits.map(b => (
+                    <li key={b} className="flex items-start gap-2 text-[13px] text-slate-600">
+                      <CheckCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-400" />{b}
+                    </li>
+                  ))}
+                </ul>
               </div>
             </div>
           </section>
 
-          <section
-            ref={registerSectionRef('messages')}
-            data-section="messages"
-            className="rounded-3xl border border-slate-200/70 bg-white/85 p-8 shadow-lg sm:p-10"
-          >
-            <header className="mb-6 flex items-start justify-between gap-6">
+          {/* MESSAGES */}
+          <section ref={registerSectionRef('messages')} data-section="messages"
+            className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+            <div className="mb-5 flex items-center justify-between">
               <div>
-                <div className={`inline-flex items-center gap-2 rounded-full border px-4 py-1 text-xs font-semibold ${theme.sectionBadgeMessages}`}>
-                  <MessageCircle className="h-4 w-4" /> Conversas monitoradas
+                <div className="flex items-center gap-2">
+                  <div className="rounded-lg bg-rose-50 p-1.5"><MessageCircle className="h-4 w-4 text-rose-500" /></div>
+                  <h2 className="text-lg font-bold text-slate-900">Mensagens suspeitas</h2>
                 </div>
-                <h3 className="mt-4 text-3xl font-bold text-slate-900">Mensagens suspeitas</h3>
-                <p className="mt-2 text-sm text-slate-600">
-                  Selecionamos as mensagens com maior potencial de risco para você revisar com atenção. Use-as como evidência documentada.
-                </p>
+                <p className="mt-1 text-xs text-slate-500">Conversas com maior potencial de risco identificadas na auditoria.</p>
               </div>
-            </header>
+              <span className="rounded-full bg-rose-50 px-3 py-1 text-xs font-bold text-rose-600">{finalResults.detailedMessages.length} encontrada{finalResults.detailedMessages.length !== 1 ? 's' : ''}</span>
+            </div>
 
             {finalResults.detailedMessages.length === 0 ? (
-              <div className="rounded-2xl border border-slate-200/70 bg-white/80 p-6 text-center text-sm text-slate-500">
-                Nenhuma mensagem suspeita foi detectada nesta análise.
+              <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
+                <MessageCircle className="mx-auto h-8 w-8 text-slate-300" />
+                <p className="mt-2 text-sm text-slate-500">Nenhuma mensagem suspeita detectada.</p>
               </div>
             ) : (
-              <div className="space-y-5">
+              <div className="space-y-3">
                 {finalResults.detailedMessages.map((message, index) => (
-                  <div key={index} className={`rounded-2xl border p-6 shadow-sm ${theme.messageCard}`}>
-                    <div className="flex items-start gap-4">
-                      <div className={`flex h-12 w-12 items-center justify-center rounded-2xl border ${theme.messageBadge}`}>
-                        <MessageCircle className="h-6 w-6" />
-                      </div>
-                      <div className="flex-1">
-                        <div className="flex items-start justify-between gap-4">
-                          <p className="text-lg font-semibold text-slate-900">Mensagem suspeita</p>
-                          <span className={`text-xs font-semibold ${theme.messagePill}`}>#{index + 1}</span>
-                        </div>
-                        <p className="mt-2 text-base leading-relaxed text-slate-600">“{message}”</p>
-                        <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-slate-500">
-                          <span className="inline-flex items-center gap-2 rounded-full border border-slate-200/70 bg-white/70 px-3 py-1">
-                            <Eye className="h-3.5 w-3.5" /> Monitoramento sigiloso
-                          </span>
-                          <span className={`rounded-full border px-3 py-1 font-semibold ${theme.messagePill}`}>Sinal de alerta</span>
+                  <div key={index} className="group rounded-xl border border-slate-100 bg-slate-50/50 p-4 transition hover:border-rose-200 hover:bg-rose-50/30">
+                    <div className="flex items-start gap-3">
+                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-rose-100 text-xs font-bold text-rose-600">
+                        {index + 1}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[13px] leading-relaxed text-slate-700">"{message}"</p>
+                        <div className="mt-2 flex items-center gap-2 text-[10px] text-slate-400">
+                          <Eye className="h-3 w-3" />
+                          <span>Monitoramento sigiloso</span>
+                          <span className="rounded-full bg-rose-100 px-2 py-0.5 font-semibold text-rose-600">Alerta</span>
                         </div>
                       </div>
                     </div>
@@ -659,170 +458,164 @@ const ResultPage = () => {
             )}
           </section>
 
-          <section
-            ref={registerSectionRef('contacts')}
-            data-section="contacts"
-            className="rounded-3xl border border-slate-200/70 bg-white/85 p-8 shadow-lg sm:p-10"
-          >
-            <header className="mb-6 flex items-start justify-between gap-6">
+          {/* CONTACTS */}
+          <section ref={registerSectionRef('contacts')} data-section="contacts"
+            className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+            <div className="mb-5 flex items-center justify-between">
               <div>
-                <div className={`inline-flex items-center gap-2 rounded-full border px-4 py-1 text-xs font-semibold ${theme.sectionBadgeContacts}`}>
-                  <Users className="h-4 w-4" /> Principais envolvidos
+                <div className="flex items-center gap-2">
+                  <div className="rounded-lg bg-indigo-50 p-1.5"><Users className="h-4 w-4 text-indigo-500" /></div>
+                  <h2 className="text-lg font-bold text-slate-900">Contatos em evidência</h2>
                 </div>
-                <h3 className="mt-4 text-3xl font-bold text-slate-900">Contatos em evidência</h3>
-                <p className="mt-2 text-sm text-slate-600">
-                  Listei os contatos que apresentaram comportamento fora do padrão. Observe níveis de risco e padrões de interação.
-                </p>
+                <p className="mt-1 text-xs text-slate-500">Contatos com comportamento fora do padrão durante o período analisado.</p>
               </div>
-            </header>
-
-            {finalResults.suspiciousContacts.length === 0 ? (
-              <div className="rounded-2xl border border-slate-200/70 bg-white/80 p-6 text-center text-sm text-slate-500">
-                Nenhum contato suspeito foi identificado nesta análise.
-              </div>
-            ) : (
-              <div className="grid gap-5 md:grid-cols-2">
-                {finalResults.suspiciousContacts.map((contact, index) => (
-                  <div key={`${contact.number}-${index}`} className={`rounded-2xl border p-6 shadow-sm ${theme.messageCard}`}>
-                    <div className="flex items-start gap-4">
-                      <div className={`flex h-12 w-12 items-center justify-center rounded-2xl border ${theme.sectionBadgeContacts}`}>
-                        <Phone className="h-5 w-5" />
-                      </div>
-                      <div className="flex-1">
-                        <p className="text-lg font-semibold text-slate-900">{contact.name || 'Contato não identificado'}</p>
-                        <p className="mt-1 text-sm text-slate-500">{contact.number}</p>
-                        <div className="mt-4 flex flex-wrap items-center gap-3 text-xs">
-                          <span className="rounded-full border border-slate-200/70 bg-white/70 px-3 py-1 text-slate-500">Interações recorrentes</span>
-                          <span
-                            className={`rounded-full border px-3 py-1 font-semibold ${
-                              contact.risk === 'Alto'
-                                ? 'border-rose-300 bg-rose-100 text-rose-700'
-                                : 'border-amber-300 bg-amber-100 text-amber-700'
-                            }`}
-                          >
-                            Risco {contact.risk}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
-
-          <section
-            ref={registerSectionRef('media')}
-            data-section="media"
-            className="rounded-3xl border border-slate-200/70 bg-white/85 p-8 shadow-lg sm:p-10"
-          >
-            <header className="mb-6 flex items-start justify-between gap-6">
-              <div>
-                <div className={`inline-flex items-center gap-2 rounded-full border px-4 py-1 text-xs font-semibold ${theme.sectionBadgeMedia}`}>
-                  <Image className="h-4 w-4" /> Evidências visuais
-                </div>
-                <h3 className="mt-4 text-3xl font-bold text-slate-900">Mídias e arquivos detectados</h3>
-                <p className="mt-2 text-sm text-slate-600">
-                  Quantificamos todas as mídias compartilhadas e identificamos itens removidos logo após o envio.
-                </p>
-              </div>
-            </header>
-
-            <div className="grid gap-4 md:grid-cols-3">
-              <div className={`rounded-2xl border p-6 text-center shadow-sm ${theme.sectionBadgeMedia}`}>
-                <p className="text-sm uppercase tracking-[0.2em]">Fotos</p>
-                <p className="mt-3 text-4xl font-bold text-slate-900">{finalResults.mediaAnalysis.photos}</p>
-                <p className="text-xs text-slate-600">Compartilhadas durante o período</p>
-              </div>
-              <div className={`rounded-2xl border p-6 text-center shadow-sm ${theme.sectionBadgeContacts}`}>
-                <p className="text-sm uppercase tracking-[0.2em]">Vídeos</p>
-                <p className="mt-3 text-4xl font-bold text-slate-900">{finalResults.mediaAnalysis.videos}</p>
-                <p className="text-xs text-slate-600">Conteúdos audiovisuais</p>
-              </div>
-              <div className={`rounded-2xl border p-6 text-center shadow-sm ${theme.messagePill}`}>
-                <p className="text-sm uppercase tracking-[0.2em]">Deletados</p>
-                <p className="mt-3 text-4xl font-bold text-slate-900">{finalResults.mediaAnalysis.deletedMedia}</p>
-                <p className="text-xs text-slate-600">Itens removidos rapidamente</p>
-              </div>
+              <span className="rounded-full bg-indigo-50 px-3 py-1 text-xs font-bold text-indigo-600">{finalResults.suspiciousContacts.length} contato{finalResults.suspiciousContacts.length !== 1 ? 's' : ''}</span>
             </div>
 
-            <div className="mt-6 rounded-2xl border border-slate-200/70 bg-white/80 p-6">
-              <h4 className="flex items-center gap-2 text-base font-semibold text-slate-900">
-                <Eye className="h-5 w-5" /> Observações
+            {finalResults.suspiciousContacts.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
+                <Users className="mx-auto h-8 w-8 text-slate-300" />
+                <p className="mt-2 text-sm text-slate-500">Nenhum contato suspeito identificado.</p>
+              </div>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2">
+                {finalResults.suspiciousContacts.map((contact, index) => {
+                  const isHigh = contact.risk === 'Alto'
+                  return (
+                    <div key={`${contact.number}-${index}`}
+                      className={`rounded-xl border p-4 transition hover:shadow-md ${isHigh ? 'border-rose-200 bg-rose-50/30' : 'border-slate-100 bg-slate-50/50'}`}>
+                      <div className="flex items-center gap-3">
+                        <div className={`flex h-10 w-10 items-center justify-center rounded-full ${isHigh ? 'bg-rose-100' : 'bg-indigo-100'}`}>
+                          <User className={`h-5 w-5 ${isHigh ? 'text-rose-600' : 'text-indigo-600'}`} />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-bold text-slate-900">{contact.name || 'Não identificado'}</p>
+                          <p className="flex items-center gap-1 text-xs text-slate-500">
+                            <Phone className="h-3 w-3" /> {contact.number}
+                          </p>
+                        </div>
+                        <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase ${isHigh ? 'bg-rose-100 text-rose-700' : 'bg-amber-100 text-amber-700'}`}>
+                          {contact.risk}
+                        </span>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
+          </section>
+
+          {/* MEDIA */}
+          <section ref={registerSectionRef('media')} data-section="media"
+            className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+            <div className="mb-5">
+              <div className="flex items-center gap-2">
+                <div className="rounded-lg bg-amber-50 p-1.5"><Image className="h-4 w-4 text-amber-500" /></div>
+                <h2 className="text-lg font-bold text-slate-900">Mídias e arquivos</h2>
+              </div>
+              <p className="mt-1 text-xs text-slate-500">Fotos, vídeos e itens removidos encontrados durante a análise.</p>
+            </div>
+
+            {/* Media visual bars */}
+            <div className="grid gap-4 sm:grid-cols-3">
+              {[
+                { label: 'Fotos', value: finalResults.mediaAnalysis.photos, icon: Camera, color: 'text-amber-600', bg: 'bg-amber-50', bar: 'bg-amber-400' },
+                { label: 'Vídeos', value: finalResults.mediaAnalysis.videos, icon: Video, color: 'text-indigo-600', bg: 'bg-indigo-50', bar: 'bg-indigo-400' },
+                { label: 'Deletados', value: finalResults.mediaAnalysis.deletedMedia, icon: Trash2, color: 'text-rose-600', bg: 'bg-rose-50', bar: 'bg-rose-400' },
+              ].map(m => {
+                const maxVal = Math.max(finalResults.mediaAnalysis.photos, finalResults.mediaAnalysis.videos, finalResults.mediaAnalysis.deletedMedia, 1)
+                const barWidth = (m.value / maxVal) * 100
+                return (
+                  <div key={m.label} className="rounded-xl border border-slate-100 bg-slate-50/50 p-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className={`rounded-lg p-1.5 ${m.bg}`}><m.icon className={`h-4 w-4 ${m.color}`} /></div>
+                        <span className="text-xs font-semibold text-slate-600">{m.label}</span>
+                      </div>
+                      <span className="text-xl font-bold text-slate-900">{m.value}</span>
+                    </div>
+                    <div className="mt-3 h-1.5 w-full overflow-hidden rounded-full bg-slate-200">
+                      <div className={`h-full rounded-full ${m.bar} transition-all duration-700`} style={{ width: `${barWidth}%` }} />
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Media observations */}
+            <div className="mt-5 rounded-xl border border-slate-100 bg-slate-50/50 p-4">
+              <h4 className="flex items-center gap-2 text-xs font-bold uppercase tracking-widest text-slate-500">
+                <Eye className="h-3.5 w-3.5" /> Observações
               </h4>
-              <ul className="mt-4 space-y-3 text-sm text-slate-600">
-                <li>• Horários de envio concentrados em períodos noturnos e madrugadas.</li>
-                <li>• Vários arquivos foram apagados poucos minutos após o envio.</li>
-                <li>• Parte das mídias foi compartilhada com contatos não salvos.</li>
+              <ul className="mt-3 space-y-2 text-[13px] text-slate-600">
+                <li className="flex items-start gap-2"><span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-amber-400" />Horários de envio concentrados em períodos noturnos e madrugadas.</li>
+                <li className="flex items-start gap-2"><span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-rose-400" />Vários arquivos foram apagados poucos minutos após o envio.</li>
+                <li className="flex items-start gap-2"><span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-400" />Parte das mídias foi compartilhada com contatos não salvos.</li>
               </ul>
             </div>
           </section>
 
-          <section
-            ref={registerSectionRef('recommendations')}
-            data-section="recommendations"
-            className="rounded-3xl border border-slate-200/70 bg-white/85 p-8 shadow-lg sm:p-10"
-          >
-            <header className="mb-6 flex items-start justify-between gap-6">
-              <div>
-                <div className={`inline-flex items-center gap-2 rounded-full border px-4 py-1 text-xs font-semibold ${theme.sectionBadgeRecommendations}`}>
-                  <CheckCircle className="h-4 w-4" /> Estratégia sugerida
-                </div>
-                <h3 className="mt-4 text-3xl font-bold text-slate-900">Próximos passos recomendados</h3>
-                <p className="mt-2 text-sm text-slate-600">
-                  Siga este roteiro para conduzir a situação com equilíbrio e segurança emocional.
-                </p>
+          {/* RECOMMENDATIONS */}
+          <section ref={registerSectionRef('recommendations')} data-section="recommendations"
+            className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+            <div className="mb-5">
+              <div className="flex items-center gap-2">
+                <div className="rounded-lg bg-emerald-50 p-1.5"><CheckCircle className="h-4 w-4 text-emerald-500" /></div>
+                <h2 className="text-lg font-bold text-slate-900">Próximos passos</h2>
               </div>
-            </header>
+              <p className="mt-1 text-xs text-slate-500">Roteiro estratégico para conduzir a situação com equilíbrio.</p>
+            </div>
 
             {finalResults.recommendations.length === 0 ? (
-              <div className="rounded-2xl border border-slate-200/70 bg-white/80 p-6 text-center text-sm text-slate-500">
-                Nenhuma recomendação adicional foi registrada. Revise os dados e defina o melhor caminho.
+              <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 p-8 text-center">
+                <CheckCircle className="mx-auto h-8 w-8 text-slate-300" />
+                <p className="mt-2 text-sm text-slate-500">Nenhuma recomendação adicional registrada.</p>
               </div>
             ) : (
-              <div className="space-y-4">
-                {finalResults.recommendations.map((recommendation, index) => (
-                  <div key={index} className={`rounded-2xl border p-6 shadow-sm ${theme.recommendationCard}`}>
-                    <div className="flex items-start gap-4">
-                      <div className={`flex h-10 w-10 items-center justify-center rounded-2xl border ${theme.sectionBadgeRecommendations}`}>
-                        <CheckCircle className="h-5 w-5" />
-                      </div>
-                      <div>
-                        <p className="text-sm uppercase tracking-[0.2em] text-slate-500">Passo {index + 1}</p>
-                        <p className="mt-2 text-base font-semibold text-slate-900">{recommendation}</p>
-                      </div>
+              <div className="space-y-3">
+                {finalResults.recommendations.map((rec, index) => (
+                  <div key={index} className="flex items-start gap-3 rounded-xl border border-slate-100 bg-slate-50/50 p-4 transition hover:border-emerald-200 hover:bg-emerald-50/30">
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-700">
+                      {index + 1}
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Passo {index + 1}</p>
+                      <p className="mt-1 text-[13px] font-medium text-slate-800">{rec}</p>
                     </div>
                   </div>
                 ))}
               </div>
             )}
 
-            <div className={`mt-8 rounded-2xl border px-6 py-6 shadow-sm ${theme.calloutSection}`}>
-              <h4 className="flex items-center gap-2 text-base font-semibold text-slate-900">
-                <ArrowRight className={`h-5 w-5 ${theme.calloutButtonIcon}`} /> Tenha um plano claro
-              </h4>
-              <p className="mt-3 text-sm text-slate-600">
-                Reúna as evidências exportadas, defina o momento apropriado para conversar e estabeleça limites saudáveis. Caso necessário, procure apoio psicológico ou jurídico especializado.
-              </p>
+            {/* Action callout */}
+            <div className="mt-5 rounded-xl border border-emerald-100 bg-gradient-to-r from-emerald-50/80 to-white p-4">
+              <div className="flex items-start gap-3">
+                <ArrowRight className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
+                <div>
+                  <h4 className="text-sm font-bold text-slate-900">Tenha um plano claro</h4>
+                  <p className="mt-1 text-xs leading-relaxed text-slate-500">
+                    Reúna as evidências exportadas, defina o momento certo para conversar e estabeleça limites saudáveis. Procure apoio profissional se necessário.
+                  </p>
+                </div>
+              </div>
             </div>
           </section>
 
-          <section className={`rounded-3xl border px-8 py-10 shadow-xl sm:p-12 ${theme.calloutSection}`}>
-            <div className="flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+          {/* CTA - New Analysis */}
+          <section className="overflow-hidden rounded-2xl border border-rose-200 bg-gradient-to-r from-rose-500 to-rose-600 p-6 shadow-lg sm:p-8">
+            <div className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <p className={`inline-flex items-center gap-2 rounded-full border px-4 py-1 text-xs uppercase tracking-[0.3em] ${theme.planSpotlightTag}`}>
+                <span className="rounded-full bg-white/20 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-white">
                   Próxima análise
-                </p>
-                <h3 className={`mt-4 text-3xl font-bold ${theme.planSpotlightAccent}`}>Quer analisar outro número?</h3>
-                <p className="mt-2 max-w-2xl text-sm text-slate-600">
-                  Inicie uma nova análise para continuar investigando com precisão e confidencialidade total.
+                </span>
+                <h3 className="mt-3 text-xl font-bold text-white sm:text-2xl">Quer analisar outro número?</h3>
+                <p className="mt-1 text-sm text-rose-100">
+                  Inicie uma nova investigação com precisão e confidencialidade total.
                 </p>
               </div>
-              <button
-                onClick={handleNewAnalysis}
-                className={`group inline-flex items-center gap-3 rounded-2xl px-6 py-4 text-sm font-semibold transition ${theme.calloutButton}`}
-              >
-                <Shield className="h-5 w-5" /> Nova análise
+              <button onClick={handleNewAnalysis}
+                className="group inline-flex items-center gap-2 rounded-xl bg-white px-6 py-3 text-sm font-bold text-rose-600 shadow-md transition hover:bg-rose-50 hover:shadow-lg">
+                <Shield className="h-4 w-4" /> Nova análise
                 <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
               </button>
             </div>
