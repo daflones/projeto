@@ -63,7 +63,7 @@ const AnalysisPage = () => {
   const navigate = useNavigate()
   const { trackEvent } = useMetaPixel()
   const { trackEvent: trackAnalytics, trackFunnel } = useAnalytics()
-  const intervalRef = useRef<NodeJS.Timeout | null>(null)
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const progressSectionRef = useRef<HTMLDivElement | null>(null)
   const resultsSectionRef = useRef<HTMLDivElement | null>(null)
   const [currentStep, setCurrentStep] = useState(0)
@@ -104,8 +104,8 @@ const AnalysisPage = () => {
       id: 'basic' as const,
       name: 'Análise Completa',
       subtitle: 'Perfeita para confirmar suspeitas pontuais com detalhes confiáveis.',
-      priceLabel: 'R$ 9,99',
-      priceValue: 9.99,
+      priceLabel: 'R$ 1,00',
+      priceValue: 1,
       badge: 'Acesso imediato',
       highlight: false,
       benefits: [
@@ -119,8 +119,8 @@ const AnalysisPage = () => {
       id: 'premium' as const,
       name: 'Plano Vitalício',
       subtitle: 'Investigue quantas vezes quiser e acompanhe a evolução do risco.',
-      priceLabel: 'R$ 49,99',
-      priceValue: 49.99,
+      priceLabel: 'R$ 49,00',
+      priceValue: 49,
       badge: 'Mais escolhido',
       highlight: true,
       benefits: [
@@ -140,7 +140,7 @@ const AnalysisPage = () => {
   const planDisplayName = storedPlanName ?? selectedPlanOption.name
   const planBadgeName = planDisplayName.replace(/^Plano\s+/i, '').trim() || planDisplayName
   const planPreselected = Boolean(analysisData?.selectedPlanId)
-  const pixDiscountValue = Number((planValue * 0.8).toFixed(2))
+  const pixDiscountValue = Math.round(planValue * 0.8)
   const pixDiscountDisplay = formatCurrency(pixDiscountValue)
 
   const statusLabel = (() => {

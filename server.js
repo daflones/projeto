@@ -101,6 +101,13 @@ app.post('/api/create-payment', async (req, res) => {
       return res.status(400).json({ error: 'Valor inválido' });
     }
 
+    // PayFast4 expects integer amounts (e.g. "9" or "49").
+    const amountNumber = Number(amount);
+    const amountInt = Math.round(amountNumber);
+    if (!Number.isFinite(amountInt) || amountInt <= 0) {
+      return res.status(400).json({ error: 'Valor inválido' });
+    }
+
     // Get OAuth token
     let token;
     try {
@@ -126,7 +133,7 @@ app.post('/api/create-payment', async (req, res) => {
     // Call PayFast4 QR Code API
     const apiUrl = `${PAYFAST4_API_URL}/pix/qrcode`;
     const payload = {
-      amount: String(Number(amount)),
+      amount: String(amountInt),
       external_id: extId,
       payerQuestion: 'comercio alimenticio',
       payer: {
@@ -212,7 +219,7 @@ app.post('/api/create-payment', async (req, res) => {
       }
     }
 
-    console.log('✅ Payment created:', { transactionId, amount, external_id: extId });
+    console.log('✅ Payment created:', { transactionId, amount: amountInt, external_id: extId });
 
     // Save in Supabase pix_payments table
     if (supabase && whatsapp) {
@@ -239,7 +246,7 @@ app.post('/api/create-payment', async (req, res) => {
           .insert([{
             payment_id: leadPaymentId,
             pix_code: pixCopiaECola,
-            amount: Number(amount),
+            amount: amountInt,
             whatsapp: normalizedWhatsapp,
             nome: nome || customer_name || 'Cliente',
             email: customer_email || '',
@@ -268,7 +275,7 @@ app.post('/api/create-payment', async (req, res) => {
       qr_code_text: pixCopiaECola,
       transaction_id: transactionId,
       external_reference: extId,
-      amount: Number(amount),
+      amount: amountInt,
       status: paymentData.status || 'pending',
       // Pass full response for debugging (remove in production)
       _raw: paymentData
