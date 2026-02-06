@@ -29,7 +29,7 @@ const QRCodePix = ({ amount, email, phone, whatsapp, nome, hasDiscount, onPaymen
   const [isExpired, setIsExpired] = useState(false)
   const [isGenerating, setIsGenerating] = useState(false)
   const [error, setError] = useState('')
-  const hasInitialized = useRef(false)
+  const prevAmountRef = useRef<number | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   // Função para criar pagamento via PayFast4 (através do nosso servidor)
@@ -76,13 +76,19 @@ const QRCodePix = ({ amount, email, phone, whatsapp, nome, hasDiscount, onPaymen
     }
   }, [amount, email, phone, whatsapp, nome])
 
-  // Inicializar PIX na montagem do componente
+  // Gerar QR code na montagem e sempre que o amount (plano) mudar
   useEffect(() => {
-    if (hasInitialized.current) return
-    hasInitialized.current = true
+    if (prevAmountRef.current === amount) return
+    prevAmountRef.current = amount
+
+    // Limpar polling anterior ao trocar de plano
+    if (pollRef.current) {
+      clearInterval(pollRef.current)
+      pollRef.current = null
+    }
+
     createNewPix()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [amount, createNewPix])
 
   // Timer de expiração - Otimizado para 2s
   useEffect(() => {

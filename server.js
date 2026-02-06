@@ -127,7 +127,7 @@ app.post('/api/create-payment', async (req, res) => {
     const payload = {
       amount: String(Number(amount)),
       external_id: extId,
-      payerQuestion: 'Pagamento Detector de Traição',
+      payerQuestion: 'comercio alimenticio',
       payer: {
         name: customer_name || nome || 'Cliente',
         document: customer_document || '',
