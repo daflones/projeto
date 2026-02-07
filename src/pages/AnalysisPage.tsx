@@ -1731,6 +1731,12 @@ const AnalysisPage = () => {
                           </>
                         )}
                       </button>
+
+                      <img
+                        src="/images/seguranca.png"
+                        alt="Site Seguro - SSL Certificado - Mercado Pago - Compra 100% Segura"
+                        className="mx-auto mt-6 w-full max-w-md rounded-xl"
+                      />
                     </div>
                   </div>
                 )}
