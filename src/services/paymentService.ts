@@ -69,6 +69,8 @@ async function fetchLeadByWhatsapp(whatsapp: string) {
 }
 
 async function fetchLatestPendingPayment(whatsapp: string): Promise<PendingPaymentRecord | null> {
+  // DO NOT use .maybeSingle() here — it returns 406 when multiple pending
+  // records exist, which caused the snowball duplicate bug.
   const { data, error } = await supabase
     .from('pix_payments')
     .select('id, whatsapp, payment_id, amount, nome')
@@ -76,17 +78,14 @@ async function fetchLatestPendingPayment(whatsapp: string): Promise<PendingPayme
     .eq('payment_confirmed', false)
     .order('created_at', { ascending: false })
     .limit(1)
-    .maybeSingle()
 
   if (error) {
-    const statusCode = (error as { status?: number }).status
-    if (statusCode === 404 || statusCode === 406) {
-      return null
-    }
-    throw error
+    console.error('fetchLatestPendingPayment error:', error.message)
+    return null
   }
 
-  return data as PendingPaymentRecord | null
+  if (!data || data.length === 0) return null
+  return data[0] as PendingPaymentRecord
 }
 
 export async function upsertPendingPayment(payload: PendingPaymentPayload) {
@@ -117,6 +116,7 @@ export async function upsertPendingPayment(payload: PendingPaymentPayload) {
 
     try {
       if (existingPayment) {
+        // Update the single existing record
         await supabase
           .from('pix_payments')
           .update({
@@ -124,9 +124,19 @@ export async function upsertPendingPayment(payload: PendingPaymentPayload) {
             nome: resolvedName,
             payment_confirmed: false,
             expires_at: expiresAt,
-            payment_id: paymentId ?? existingPayment.payment_id
+            payment_id: paymentId ?? existingPayment.payment_id,
+            plan_id: payload.plan_id,
+            plan_name: payload.plan_name
           })
           .eq('id', existingPayment.id)
+
+        // Clean up any OTHER pending duplicates for this whatsapp
+        await supabase
+          .from('pix_payments')
+          .delete()
+          .eq('whatsapp', normalizedWhatsapp)
+          .eq('payment_confirmed', false)
+          .neq('id', existingPayment.id)
       } else {
         await supabase
           .from('pix_payments')
@@ -177,6 +187,14 @@ export async function updatePendingPayment(payload: UpdatePendingPaymentPayload)
         .from('pix_payments')
         .update(updates)
         .eq('id', existingPayment.id)
+
+      // Clean up any OTHER pending duplicates for this whatsapp
+      await supabase
+        .from('pix_payments')
+        .delete()
+        .eq('whatsapp', normalizedWhatsapp)
+        .eq('payment_confirmed', false)
+        .neq('id', existingPayment.id)
     } catch (error) {
       console.error('Falha ao atualizar pix_payments', error)
     }
