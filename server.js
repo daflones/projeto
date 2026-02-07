@@ -244,42 +244,64 @@ app.post('/api/create-payment', async (req, res) => {
           leadPaymentId = leadData.payment_id;
         }
 
-        // Delete ALL existing unconfirmed records for this whatsapp to prevent duplicates.
-        // The frontend paymentService may have already created placeholder records.
-        const { data: deletedRows } = await supabase
+        const recordData = {
+          payment_id: leadPaymentId,
+          pix_code: pixCopiaECola,
+          amount: Number(amountFormatted),
+          whatsapp: normalizedWhatsapp,
+          nome: nome || customer_name || 'Cliente',
+          email: customer_email || '',
+          phone: '',
+          payment_confirmed: false,
+          expires_at: expiresAt,
+          gateway_transaction_id: transactionId,
+          external_reference: extId,
+          plan_id: plan_id || null,
+          plan_name: plan_name || null
+        };
+
+        // Check for an existing pending record to UPDATE instead of creating duplicates
+        const { data: existingRows } = await supabase
           .from('pix_payments')
-          .delete()
+          .select('id')
           .eq('whatsapp', normalizedWhatsapp)
           .eq('payment_confirmed', false)
-          .select('id');
+          .order('created_at', { ascending: false })
+          .limit(1);
 
-        if (deletedRows && deletedRows.length > 0) {
-          console.log(`🗑️  Cleaned ${deletedRows.length} pending pix_payments for ${normalizedWhatsapp}`);
-        }
+        if (existingRows && existingRows.length > 0) {
+          // Update the existing record with new PIX data
+          const { error: updateError } = await supabase
+            .from('pix_payments')
+            .update(recordData)
+            .eq('id', existingRows[0].id);
 
-        // Insert the single authoritative record with gateway data
-        const { error: insertError } = await supabase
-          .from('pix_payments')
-          .insert([{
-            payment_id: leadPaymentId,
-            pix_code: pixCopiaECola,
-            amount: Number(amountFormatted),
-            whatsapp: normalizedWhatsapp,
-            nome: nome || customer_name || 'Cliente',
-            email: customer_email || '',
-            phone: '',
-            payment_confirmed: false,
-            expires_at: expiresAt,
-            gateway_transaction_id: transactionId,
-            external_reference: extId,
-            plan_id: plan_id || null,
-            plan_name: plan_name || null
-          }]);
+          if (updateError) {
+            console.error('⚠️  Failed to update pix_payments:', updateError.message);
+          } else {
+            console.log('✅ pix_payments record updated for', normalizedWhatsapp);
+          }
 
-        if (insertError) {
-          console.error('⚠️  Failed to save to pix_payments:', insertError.message);
+          // Clean up any OTHER pending duplicates
+          if (existingRows.length > 0) {
+            await supabase
+              .from('pix_payments')
+              .delete()
+              .eq('whatsapp', normalizedWhatsapp)
+              .eq('payment_confirmed', false)
+              .neq('id', existingRows[0].id);
+          }
         } else {
-          console.log('✅ pix_payments record created for', normalizedWhatsapp);
+          // No existing record — insert new
+          const { error: insertError } = await supabase
+            .from('pix_payments')
+            .insert([recordData]);
+
+          if (insertError) {
+            console.error('⚠️  Failed to save to pix_payments:', insertError.message);
+          } else {
+            console.log('✅ pix_payments record created for', normalizedWhatsapp);
+          }
         }
       } catch (dbError) {
         console.error('⚠️  Failed to save to pix_payments:', dbError.message);

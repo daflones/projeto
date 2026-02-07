@@ -33,9 +33,10 @@ const QRCodePix = ({ amount, email, phone, whatsapp, nome, planId, planName, has
   const [error, setError] = useState('')
   const prevAmountRef = useRef<number | null>(null)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const abortRef = useRef<AbortController | null>(null)
 
   // Função para criar pagamento via PayFast4 (através do nosso servidor)
-  const createNewPix = useCallback(async () => {
+  const createNewPix = useCallback(async (signal?: AbortSignal) => {
     setIsGenerating(true)
     setError('')
     try {
@@ -50,10 +51,13 @@ const QRCodePix = ({ amount, email, phone, whatsapp, nome, planId, planName, has
           nome: nome || 'Cliente',
           plan_id: planId || '',
           plan_name: planName || ''
-        })
+        }),
+        signal
       })
 
+      if (signal?.aborted) return
       const data = await response.json()
+      if (signal?.aborted) return
 
       if (!response.ok || !data.success) {
         console.error('Erro ao criar pagamento:', data)
@@ -72,18 +76,24 @@ const QRCodePix = ({ amount, email, phone, whatsapp, nome, planId, planName, has
       // Reset timer
       setTimeLeft(900)
       setIsExpired(false)
-    } catch (err) {
+    } catch (err: any) {
+      if (err?.name === 'AbortError') return
       console.error('Erro ao criar pagamento:', err)
       setError('Erro de conexão. Verifique sua internet e tente novamente.')
     } finally {
-      setIsGenerating(false)
+      if (!signal?.aborted) setIsGenerating(false)
     }
-  }, [amount, email, phone, whatsapp, nome])
+  }, [amount, email, phone, whatsapp, nome, planId, planName])
 
   // Gerar QR code na montagem e sempre que o amount (plano) mudar
   useEffect(() => {
     if (prevAmountRef.current === amount) return
     prevAmountRef.current = amount
+
+    // Abort previous request to prevent duplicate rows
+    if (abortRef.current) abortRef.current.abort()
+    const controller = new AbortController()
+    abortRef.current = controller
 
     // Limpar polling anterior ao trocar de plano
     if (pollRef.current) {
@@ -91,7 +101,9 @@ const QRCodePix = ({ amount, email, phone, whatsapp, nome, planId, planName, has
       pollRef.current = null
     }
 
-    createNewPix()
+    createNewPix(controller.signal)
+
+    return () => { controller.abort() }
   }, [amount, createNewPix])
 
   // Timer de expiração - Otimizado para 2s
@@ -203,7 +215,7 @@ const QRCodePix = ({ amount, email, phone, whatsapp, nome, planId, planName, has
             <p className="text-sm font-medium">{error}</p>
           </div>
           <button
-            onClick={createNewPix}
+            onClick={() => createNewPix()}
             disabled={isGenerating}
             className="mt-3 w-full btn-primary"
           >
@@ -295,7 +307,7 @@ const QRCodePix = ({ amount, email, phone, whatsapp, nome, planId, planName, has
             </p>
           </div>
           <button
-            onClick={createNewPix}
+            onClick={() => createNewPix()}
             disabled={isGenerating}
             className="w-full btn-primary"
           >
