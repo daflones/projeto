@@ -15,6 +15,7 @@ interface PaymentRow {
   payment_id?: string
   payment_confirmed?: boolean
   selected_plan?: string
+  plan_name?: string
 }
 
 interface PaymentsTableProps {
@@ -57,7 +58,8 @@ const PaymentsTable = ({ pixPayments, cardPayments, onRefresh }: PaymentsTablePr
           origin: 'pix',
           payment_id: p.payment_id || p.id,
           payment_confirmed: p.payment_confirmed === true,
-          selected_plan: p.plan_id || p.selected_plan || (p.amount >= 40 ? 'premium' : 'basic')
+          selected_plan: p.plan_id || p.selected_plan || (p.amount >= 40 ? 'premium' : 'basic'),
+          plan_name: p.plan_name || null
         }
       }),
       ...cardPayments.map<PaymentRow>(p => ({
@@ -71,7 +73,8 @@ const PaymentsTable = ({ pixPayments, cardPayments, onRefresh }: PaymentsTablePr
         origin: 'card',
         payment_id: p.payment_id || p.id,
         payment_confirmed: p.payment_confirmed === true,
-        selected_plan: p.plan_id || p.selected_plan || (p.amount >= 40 ? 'premium' : 'basic')
+        selected_plan: p.plan_id || p.selected_plan || (p.amount >= 40 ? 'premium' : 'basic'),
+        plan_name: p.plan_name || null
       }))
     ].sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
   ), [pixPayments, cardPayments])
@@ -101,10 +104,11 @@ const PaymentsTable = ({ pixPayments, cardPayments, onRefresh }: PaymentsTablePr
   }
 
   const getPlanLabel = (payment: PaymentRow) => {
-    if (payment.selected_plan === 'premium') return 'Plano B'
-    if (payment.selected_plan === 'basic') return 'Plano A'
-    if (payment.amount >= 40) return 'Plano B'
-    return 'Plano A'
+    if (payment.plan_name) return payment.plan_name
+    if (payment.selected_plan === 'premium') return 'Plano Vitalício'
+    if (payment.selected_plan === 'basic') return 'Análise Completa'
+    if (payment.amount >= 40) return 'Plano Vitalício'
+    return 'Análise Completa'
   }
 
   // Filtrar por status e busca
@@ -339,7 +343,7 @@ const PaymentsTable = ({ pixPayments, cardPayments, onRefresh }: PaymentsTablePr
                   </td>
                   <td className="py-4 px-4 text-center">
                     <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
-                      getPlanLabel(payment) === 'Plano B'
+                      payment.selected_plan === 'premium'
                         ? 'bg-purple-50 text-purple-600'
                         : 'bg-blue-50 text-blue-600'
                     }`}>

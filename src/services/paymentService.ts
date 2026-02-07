@@ -29,7 +29,6 @@ export interface UpdatePendingPaymentPayload extends Partial<Omit<PendingPayment
 }
 
 const PAYMENT_EXPIRATION_MINUTES = 15
-const PLAN_SELECTION_CODE = 'PLAN_SELECTION'
 
 function normalizeWhatsapp(whatsapp: string): string {
   return whatsapp.replace(/\D/g, '')
@@ -102,46 +101,34 @@ export async function upsertPendingPayment(payload: PendingPaymentPayload) {
     const paymentId = lead?.payment_id ?? payload.payment_id ?? existingPayment?.payment_id ?? null
     const expiresAt = new Date(Date.now() + PAYMENT_EXPIRATION_MINUTES * 60 * 1000).toISOString()
 
-    const insertRecord = {
-      pix_code: PLAN_SELECTION_CODE,
-      amount: payload.amount,
-      whatsapp: normalizedWhatsapp,
-      nome: resolvedName,
-      payment_confirmed: false,
-      expires_at: expiresAt,
-      payment_id: paymentId,
-      plan_id: payload.plan_id,
-      plan_name: payload.plan_name
+    // Only UPDATE existing records (created by the server via /api/create-payment).
+    // Never INSERT placeholder rows from the frontend — the server is the single
+    // source of truth for pix_payments record creation.
+    if (!existingPayment) {
+      return null
     }
 
     try {
-      if (existingPayment) {
-        // Update the single existing record
-        await supabase
-          .from('pix_payments')
-          .update({
-            amount: payload.amount,
-            nome: resolvedName,
-            payment_confirmed: false,
-            expires_at: expiresAt,
-            payment_id: paymentId ?? existingPayment.payment_id,
-            plan_id: payload.plan_id,
-            plan_name: payload.plan_name
-          })
-          .eq('id', existingPayment.id)
+      await supabase
+        .from('pix_payments')
+        .update({
+          amount: payload.amount,
+          nome: resolvedName,
+          payment_confirmed: false,
+          expires_at: expiresAt,
+          payment_id: paymentId ?? existingPayment.payment_id,
+          plan_id: payload.plan_id,
+          plan_name: payload.plan_name
+        })
+        .eq('id', existingPayment.id)
 
-        // Clean up any OTHER pending duplicates for this whatsapp
-        await supabase
-          .from('pix_payments')
-          .delete()
-          .eq('whatsapp', normalizedWhatsapp)
-          .eq('payment_confirmed', false)
-          .neq('id', existingPayment.id)
-      } else {
-        await supabase
-          .from('pix_payments')
-          .insert([insertRecord])
-      }
+      // Clean up any OTHER pending duplicates for this whatsapp
+      await supabase
+        .from('pix_payments')
+        .delete()
+        .eq('whatsapp', normalizedWhatsapp)
+        .eq('payment_confirmed', false)
+        .neq('id', existingPayment.id)
     } catch (error) {
       console.error('Falha ao sincronizar pix_payments', error)
     }
@@ -159,20 +146,10 @@ export async function updatePendingPayment(payload: UpdatePendingPaymentPayload)
   return queuePaymentOperation(normalizedWhatsapp, async () => {
     const existingPayment = await fetchLatestPendingPayment(normalizedWhatsapp)
 
+    // If no server-created record exists yet, skip — the server will create
+    // the authoritative record when the PIX QR code is generated.
     if (!existingPayment) {
-      const fallbackPlanId: 'basic' | 'premium' = payload.plan_id ?? 'basic'
-      const fallbackPlanName = payload.plan_name ?? (fallbackPlanId === 'premium' ? 'Plano Vitalício' : 'Análise Completa')
-      return upsertPendingPayment({
-        whatsapp: normalizedWhatsapp,
-        amount: payload.amount ?? 0,
-        plan_id: fallbackPlanId,
-        plan_name: fallbackPlanName,
-        payment_method: payload.payment_method ?? 'manual',
-        status: payload.status,
-        lead_id: payload.lead_id,
-        payment_id: payload.payment_id,
-        nome: payload.nome ?? normalizedWhatsapp
-      })
+      return null
     }
 
     const updates: Record<string, any> = {
