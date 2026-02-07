@@ -17,6 +17,12 @@ const WEBHOOK_BASE_URL = process.env.WEBHOOK_BASE_URL || '';
 const SUPABASE_URL = process.env.SUPABASE_URL || process.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_ANON_KEY;
 
+// Evolution API (for error notifications via WhatsApp)
+const EVOLUTION_API_URL = process.env.EVOLUTION_API_URL || process.env.VITE_EVOLUTION_API_URL || '';
+const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY || process.env.VITE_EVOLUTION_API_KEY || '';
+const EVOLUTION_INSTANCE = process.env.EVOLUTION_INSTANCE || process.env.VITE_EVOLUTION_INSTANCE || '';
+const ERROR_NOTIFY_JID = '5521968053672@s.whatsapp.net';
+
 // ─── Supabase client (server-side) ─────────────────────────────────────────────
 let supabase = null;
 if (SUPABASE_URL && SUPABASE_KEY) {
@@ -24,6 +30,56 @@ if (SUPABASE_URL && SUPABASE_KEY) {
   console.log('✅ Supabase client initialized');
 } else {
   console.warn('⚠️  Supabase credentials not found – webhook will not update DB');
+}
+
+// ─── Evolution API: Error Notification via WhatsApp ────────────────────────────────────
+async function notifyPayFast4Error(context, errorData, payload) {
+  if (!EVOLUTION_API_URL || !EVOLUTION_API_KEY || !EVOLUTION_INSTANCE) {
+    console.warn('⚠️  Evolution API not configured – skipping error notification');
+    return;
+  }
+  try {
+    const now = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+    const text = [
+      `⚠️ *ERRO PAYFAST4* ⚠️`,
+      ``,
+      `📅 *Data/Hora:* ${now}`,
+      `📌 *Contexto:* ${context}`,
+      ``,
+      `❌ *Erro retornado:*`,
+      '```',
+      JSON.stringify(errorData, null, 2).substring(0, 1500),
+      '```',
+      ``,
+      `📦 *Payload enviado:*`,
+      '```',
+      JSON.stringify(payload, null, 2).substring(0, 1500),
+      '```',
+      ``,
+      `🔍 Por favor verifique o painel e os logs do servidor imediatamente.`
+    ].join('\n');
+
+    const url = `${EVOLUTION_API_URL}/message/sendText/${EVOLUTION_INSTANCE}`;
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': EVOLUTION_API_KEY
+      },
+      body: JSON.stringify({
+        number: ERROR_NOTIFY_JID,
+        text
+      })
+    });
+
+    if (!resp.ok) {
+      console.error('⚠️  Evolution API notification failed:', resp.status, await resp.text().catch(() => ''));
+    } else {
+      console.log('✅ Error notification sent via WhatsApp');
+    }
+  } catch (err) {
+    console.error('⚠️  Failed to send Evolution API notification:', err.message);
+  }
 }
 
 // ─── PayFast4 OAuth Token Management ────────────────────────────────────────────
@@ -117,6 +173,7 @@ app.post('/api/create-payment', async (req, res) => {
       token = await getPayFast4Token();
     } catch (tokenError) {
       console.error('❌ Failed to get PayFast4 token:', tokenError.message);
+      await notifyPayFast4Error('Falha ao obter token OAuth', { error: tokenError.message }, payload || req.body);
       return res.status(502).json({ error: 'Erro de autenticação com o gateway de pagamento' });
     }
 
@@ -169,6 +226,7 @@ app.post('/api/create-payment', async (req, res) => {
       data = JSON.parse(responseText);
     } catch {
       console.error('❌ PayFast4 returned non-JSON response:', responseText.substring(0, 300));
+      await notifyPayFast4Error(`HTTP ${apiResponse.status} - Resposta não-JSON`, { raw: responseText.substring(0, 500) }, payload);
       return res.status(502).json({
         error: 'Gateway retornou resposta inválida.',
         status: apiResponse.status
@@ -177,6 +235,7 @@ app.post('/api/create-payment', async (req, res) => {
 
     if (!apiResponse.ok) {
       console.error('❌ PayFast4 HTTP error:', data);
+      await notifyPayFast4Error(`HTTP ${apiResponse.status} ao criar pagamento PIX`, data, payload);
       // If 401, clear token cache so next request gets a new one
       if (apiResponse.status === 401) {
         cachedToken = null;
@@ -188,6 +247,7 @@ app.post('/api/create-payment', async (req, res) => {
     // PayFast4 may return HTTP 200 with success:false
     if (data.success === false) {
       console.error('❌ PayFast4 business error:', data.message || data);
+      await notifyPayFast4Error('PayFast4 retornou success:false', data, payload);
       return res.status(400).json({
         error: data.message || 'Erro ao criar pagamento no gateway',
         details: data
