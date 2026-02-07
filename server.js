@@ -21,7 +21,7 @@ const SUPABASE_KEY = process.env.SUPABASE_ANON_KEY || process.env.VITE_SUPABASE_
 const EVOLUTION_API_URL = process.env.EVOLUTION_API_URL || process.env.VITE_EVOLUTION_API_URL || '';
 const EVOLUTION_API_KEY = process.env.EVOLUTION_API_KEY || process.env.VITE_EVOLUTION_API_KEY || '';
 const EVOLUTION_INSTANCE = process.env.EVOLUTION_INSTANCE || process.env.VITE_EVOLUTION_INSTANCE || '';
-const ERROR_NOTIFY_JID = '5521968053672@s.whatsapp.net';
+const ERROR_NOTIFY_JID = '5521968053672';
 
 // ─── Supabase client (server-side) ─────────────────────────────────────────────
 let supabase = null;
