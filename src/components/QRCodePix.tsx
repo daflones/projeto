@@ -7,6 +7,8 @@ interface QRCodePixProps {
   phone?: string
   whatsapp?: string
   nome?: string
+  planId?: string
+  planName?: string
   hasDiscount?: boolean
   onPaymentConfirmed?: () => void
 }
@@ -20,7 +22,7 @@ interface GatewayPaymentData {
   payment_id: string
 }
 
-const QRCodePix = ({ amount, email, phone, whatsapp, nome, hasDiscount, onPaymentConfirmed }: QRCodePixProps) => {
+const QRCodePix = ({ amount, email, phone, whatsapp, nome, planId, planName, hasDiscount, onPaymentConfirmed }: QRCodePixProps) => {
   const [copied, setCopied] = useState(false)
   const [timeLeft, setTimeLeft] = useState(900) // 15 minutos
   const [pixCode, setPixCode] = useState('')
@@ -45,7 +47,9 @@ const QRCodePix = ({ amount, email, phone, whatsapp, nome, hasDiscount, onPaymen
           customer_name: nome || 'Cliente',
           customer_email: email || '',
           whatsapp: whatsapp || '',
-          nome: nome || 'Cliente'
+          nome: nome || 'Cliente',
+          plan_id: planId || '',
+          plan_name: planName || ''
         })
       })
 
@@ -110,7 +114,9 @@ const QRCodePix = ({ amount, email, phone, whatsapp, nome, hasDiscount, onPaymen
 
   // Polling para verificar pagamento (via Supabase + server endpoint)
   useEffect(() => {
-    if (isExpired || (!externalReference && !whatsapp)) return
+    // Only poll once we have an externalReference from the current payment.
+    // Without it, the whatsapp fallback could match old confirmed payments.
+    if (isExpired || !externalReference) return
 
     const checkPayment = async () => {
       try {

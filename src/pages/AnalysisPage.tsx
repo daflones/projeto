@@ -591,11 +591,41 @@ const AnalysisPage = () => {
 
     autoCheckoutHandledRef.current = true
 
-    if (planPreselected) {
-      void handleProceedToPayment({ forceSkipPlans: true, skipScroll: true })
-    } else {
-      void handleShowPaymentPlans({ skipScroll: true })
+    // Check if this number has a valid premium (Plan B) subscription (7-day window).
+    // Plan A NEVER bypasses — always requires a new purchase.
+    const checkPremiumAccess = async () => {
+      try {
+        const cleanWa = analysisData.whatsapp?.replace(/\D/g, '') || ''
+        if (!cleanWa) return false
+
+        const res = await fetch('/api/check-access', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ whatsapp: cleanWa })
+        })
+        const data = await res.json()
+        return data.hasAccess === true
+      } catch {
+        return false
+      }
     }
+
+    void (async () => {
+      const hasPremiumAccess = await checkPremiumAccess()
+
+      if (hasPremiumAccess) {
+        // Premium user within 7-day window — bypass payment, go to results
+        navigateToResults(generateFinalResults())
+        return
+      }
+
+      // No premium access — proceed with normal payment flow
+      if (planPreselected) {
+        void handleProceedToPayment({ forceSkipPlans: true, skipScroll: true })
+      } else {
+        void handleShowPaymentPlans({ skipScroll: true })
+      }
+    })()
   }, [analysisData, isAnalyzing, planPreselected, handleProceedToPayment, handleShowPaymentPlans, trackPlansViewedStep])
 
   useEffect(() => {
@@ -647,13 +677,64 @@ const AnalysisPage = () => {
     ]
   }
 
+  const generateFinalResults = () => {
+    const allMessages = [
+      "Oi, tudo bem? Tô com saudades...", "Consegue sair hoje?", "Deleta depois, ok?",
+      "Não fala nada pra ninguém", "Tô pensando em você", "Que tal nos encontrarmos?",
+      "Adorei ontem", "Você tá livre?", "Preciso te ver", "Tá complicado aqui em casa...",
+      "Você é especial pra mim", "Quando vai dar certo?", "Nosso segredo", "Mal posso esperar",
+      "Oi lindeza, como foi o dia?", "Conseguiu sair de casa?", "Tô morrendo de saudade",
+      "Vamos marcar algo?", "Não posso parar de pensar em você", "Ela/ele não desconfia de nada",
+      "Te amo demais", "Quando a gente vai ficar junto?", "Apaga tudo depois", "Só você me entende",
+      "Tô louca/o pra te ver", "Hoje não vai dar...", "Inventei uma desculpa aqui", "Você é incrível"
+    ]
+
+    const numMessages = steps[1].count || 0
+    const numContacts = steps[3].count || 0
+    const numMedia = steps[2].count || 0
+
+    const shuffled = [...allMessages].sort(() => Math.random() - 0.5)
+    const selectedMessages = shuffled.slice(0, numMessages)
+
+    const ddd = analysisData?.whatsapp?.match(/\d{2,3}/)?.[0] || '11'
+
+    const contactNames = ["Contato não salvo", "Amor", "Trabalho", "Gatinha", "Amigo(a)"]
+    const selectedContacts = contactNames.slice(0, numContacts).map((name, i) => ({
+      name,
+      number: `+55 ${ddd} 9${1000 + Math.floor(Math.random() * 9000)}-${1000 + Math.floor(Math.random() * 9000)}`,
+      risk: i === 0 || i === 2 || i === 3 ? "Alto" : "Médio"
+    }))
+
+    const photos = Math.floor(numMedia * 0.6)
+    const videos = numMedia - photos
+    const deletedMedia = Math.floor(numMedia * 0.3)
+
+    return {
+      messages: numMessages,
+      contacts: numContacts,
+      media: numMedia,
+      riskLevel: steps[1].count && steps[1].count > 10 ? 'high' : 'medium',
+      detailedMessages: selectedMessages,
+      suspiciousContacts: selectedContacts,
+      mediaAnalysis: { photos, videos, deletedMedia },
+      deletedMedia,
+      riskScore: Math.floor(Math.random() * 30) + 70,
+      recommendations: generateRecommendations()
+    }
+  }
+
+  const navigateToResults = (results: ReturnType<typeof generateFinalResults>) => {
+    localStorage.setItem('paymentConfirmed', 'true')
+    localStorage.setItem('paymentTimestamp', Date.now().toString())
+    localStorage.setItem('finalResults', JSON.stringify(results))
+    navigate('/resultado')
+  }
+
   const handlePixPayment = () => {
-    // Rastreia pagamento via PIX
     const planValue = selectedPlanOption.priceValue
     const planName = selectedPlanOption.name
     const cleanWhatsapp = analysisData?.whatsapp?.replace(/\D/g, '') || ''
     
-    // Meta Pixel
     trackEvent('Purchase', {
       content_name: planName,
       value: planValue,
@@ -661,7 +742,6 @@ const AnalysisPage = () => {
       content_category: 'PIX Payment'
     })
     
-    // Analytics no banco
     trackAnalytics('purchase', 'Purchase Completed', '/analise', cleanWhatsapp, {
       plan: selectedPlan,
       plan_name: planName,
@@ -674,61 +754,7 @@ const AnalysisPage = () => {
       value: planValue
     })
     
-    // Lista de mensagens
-    const allMessages = [
-      "Oi, tudo bem? Tô com saudades...", "Consegue sair hoje?", "Deleta depois, ok?",
-      "Não fala nada pra ninguém", "Tô pensando em você", "Que tal nos encontrarmos?",
-      "Adorei ontem", "Você tá livre?", "Preciso te ver", "Tá complicado aqui em casa...",
-      "Você é especial pra mim", "Quando vai dar certo?", "Nosso segredo", "Mal posso esperar",
-      "Oi lindeza, como foi o dia?", "Conseguiu sair de casa?", "Tô morrendo de saudade",
-      "Vamos marcar algo?", "Não posso parar de pensar em você", "Ela/ele não desconfia de nada",
-      "Te amo demais", "Quando a gente vai ficar junto?", "Apaga tudo depois", "Só você me entende",
-      "Tô louca/o pra te ver", "Hoje não vai dar...", "Inventei uma desculpa aqui", "Você é incrível"
-    ]
-    
-    // Pegar quantidade da análise
-    const numMessages = steps[1].count || 0
-    const numContacts = steps[3].count || 0
-    const numMedia = steps[2].count || 0
-    
-    // Selecionar mensagens
-    const shuffled = [...allMessages].sort(() => Math.random() - 0.5)
-    const selectedMessages = shuffled.slice(0, numMessages)
-    
-    // Extrair DDD
-    const ddd = analysisData.whatsapp.match(/\d{2,3}/)?.[0] || '11'
-    
-    // Gerar contatos
-    const contactNames = ["Contato não salvo", "Amor", "Trabalho", "Gatinha", "Amigo(a)"]
-    const selectedContacts = contactNames.slice(0, numContacts).map((name, i) => ({
-      name,
-      number: `+55 ${ddd} 9${1000 + Math.floor(Math.random() * 9000)}-${1000 + Math.floor(Math.random() * 9000)}`,
-      risk: i === 0 || i === 2 || i === 3 ? "Alto" : "Médio"
-    }))
-    
-    // Dividir mídias
-    const photos = Math.floor(numMedia * 0.6)
-    const videos = numMedia - photos
-    const deletedMedia = Math.floor(numMedia * 0.3)
-    
-    // Criar resultado final
-    const finalResults = {
-      messages: numMessages,
-      contacts: numContacts,
-      media: numMedia,
-      riskLevel: steps[1].count && steps[1].count > 10 ? 'high' : 'medium',
-      detailedMessages: selectedMessages,
-      suspiciousContacts: selectedContacts,
-      mediaAnalysis: { photos, videos, deletedMedia },
-      deletedMedia,
-      riskScore: Math.floor(Math.random() * 30) + 70,
-      recommendations: generateRecommendations()
-    }
-    
-    localStorage.setItem('paymentConfirmed', 'true')
-    localStorage.setItem('paymentTimestamp', Date.now().toString())
-    localStorage.setItem('finalResults', JSON.stringify(finalResults))
-    navigate('/resultado')
+    navigateToResults(generateFinalResults())
   }
 
   const handleCardInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1533,6 +1559,8 @@ const AnalysisPage = () => {
                       amount={showPixDiscount ? pixDiscountValue : planValue}
                       whatsapp={analysisData?.whatsapp}
                       nome={displayName}
+                      planId={selectedPlan}
+                      planName={selectedPlanOption.name}
                       onPaymentConfirmed={handlePixPayment}
                     />
                     <p className="mt-4 text-center text-sm text-slate-500">

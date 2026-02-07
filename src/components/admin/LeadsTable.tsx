@@ -121,11 +121,11 @@ const LeadsTable = ({ leads, onUpdate }: LeadsTableProps) => {
   }
 
   const getPlanLabel = (lead: Lead) => {
-    if (lead.selected_plan === 'premium' || lead.plan_name === 'premium') return 'Vitalício'
-    if (lead.selected_plan === 'basic' || lead.plan_name === 'basic') return 'Completa'
+    if (lead.selected_plan === 'premium' || lead.plan_name === 'premium') return 'Plano B'
+    if (lead.selected_plan === 'basic' || lead.plan_name === 'basic') return 'Plano A'
     if (lead.payment_amount) {
-      if (lead.payment_amount >= 40) return 'Vitalício'
-      return 'Completa'
+      if (lead.payment_amount >= 40) return 'Plano B'
+      return 'Plano A'
     }
     return '-'
   }
@@ -246,7 +246,7 @@ const LeadsTable = ({ leads, onUpdate }: LeadsTableProps) => {
                   <td className="py-4 px-4 text-center">
                     {getPlanLabel(lead) !== '-' ? (
                       <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
-                        getPlanLabel(lead) === 'Vitalício'
+                        getPlanLabel(lead) === 'Plano B'
                           ? 'bg-purple-50 text-purple-600'
                           : 'bg-blue-50 text-blue-600'
                       }`}>

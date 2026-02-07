@@ -94,7 +94,9 @@ app.post('/api/create-payment', async (req, res) => {
       customer_document,
       external_reference,
       whatsapp,
-      nome
+      nome,
+      plan_id,
+      plan_name
     } = req.body;
 
     if (!amount || amount <= 0) {
@@ -222,7 +224,7 @@ app.post('/api/create-payment', async (req, res) => {
 
     console.log('✅ Payment created:', { transactionId, amount: amountNumber, external_id: extId });
 
-    // Save in Supabase pix_payments table
+    // Save in Supabase pix_payments table (upsert: update existing pending record or insert new)
     if (supabase && whatsapp) {
       try {
         const normalizedWhatsapp = (whatsapp || '').replace(/\D/g, '');
@@ -242,6 +244,20 @@ app.post('/api/create-payment', async (req, res) => {
           leadPaymentId = leadData.payment_id;
         }
 
+        // Delete ALL existing unconfirmed records for this whatsapp to prevent duplicates.
+        // The frontend paymentService may have already created placeholder records.
+        const { data: deletedRows } = await supabase
+          .from('pix_payments')
+          .delete()
+          .eq('whatsapp', normalizedWhatsapp)
+          .eq('payment_confirmed', false)
+          .select('id');
+
+        if (deletedRows && deletedRows.length > 0) {
+          console.log(`🗑️  Cleaned ${deletedRows.length} pending pix_payments for ${normalizedWhatsapp}`);
+        }
+
+        // Insert the single authoritative record with gateway data
         const { error: insertError } = await supabase
           .from('pix_payments')
           .insert([{
@@ -255,7 +271,9 @@ app.post('/api/create-payment', async (req, res) => {
             payment_confirmed: false,
             expires_at: expiresAt,
             gateway_transaction_id: transactionId,
-            external_reference: extId
+            external_reference: extId,
+            plan_id: plan_id || null,
+            plan_name: plan_name || null
           }]);
 
         if (insertError) {
@@ -306,37 +324,66 @@ app.post('/api/webhook/payfast4', async (req, res) => {
       console.log(`✅ Payment PAID: txn=${transactionId} - R$ ${amount} - external_id=${externalId}`);
 
       let updated = false;
+      const webhookAmount = Number(amount);
 
       // Update by external_reference (= external_id)
       if (externalId) {
-        const { data: updateData, error: updateError } = await supabase
+        // First, fetch the record to validate the amount
+        const { data: records } = await supabase
           .from('pix_payments')
-          .update({ payment_confirmed: true })
-          .eq('external_reference', externalId)
-          .select('id, whatsapp');
+          .select('id, whatsapp, amount')
+          .eq('external_reference', externalId);
 
-        if (!updateError && updateData && updateData.length > 0) {
-          updated = true;
-          console.log(`✅ pix_payments updated by external_reference: ${externalId}`, updateData);
+        if (records && records.length > 0) {
+          const record = records[0];
+          const storedAmount = Number(record.amount);
+
+          // Validate: webhook amount must match stored amount (tolerance of R$0.05)
+          if (Number.isFinite(webhookAmount) && Math.abs(webhookAmount - storedAmount) > 0.05) {
+            console.warn(`⚠️  Amount mismatch! Webhook: R$${webhookAmount}, Stored: R$${storedAmount}. Rejecting confirmation for external_id=${externalId}`);
+          } else {
+            const { error: updateError } = await supabase
+              .from('pix_payments')
+              .update({ payment_confirmed: true })
+              .eq('id', record.id);
+
+            if (!updateError) {
+              updated = true;
+              console.log(`✅ pix_payments updated by external_reference: ${externalId}`);
+            }
+          }
         }
       }
 
       // Fallback: update by gateway_transaction_id
       if (!updated && transactionId) {
-        const { data: updateData, error: updateError } = await supabase
+        const { data: records } = await supabase
           .from('pix_payments')
-          .update({ payment_confirmed: true })
-          .eq('gateway_transaction_id', transactionId)
-          .select('id, whatsapp');
+          .select('id, whatsapp, amount')
+          .eq('gateway_transaction_id', transactionId);
 
-        if (!updateError && updateData && updateData.length > 0) {
-          updated = true;
-          console.log(`✅ pix_payments updated by gateway_transaction_id: ${transactionId}`, updateData);
+        if (records && records.length > 0) {
+          const record = records[0];
+          const storedAmount = Number(record.amount);
+
+          if (Number.isFinite(webhookAmount) && Math.abs(webhookAmount - storedAmount) > 0.05) {
+            console.warn(`⚠️  Amount mismatch! Webhook: R$${webhookAmount}, Stored: R$${storedAmount}. Rejecting confirmation for txn=${transactionId}`);
+          } else {
+            const { error: updateError } = await supabase
+              .from('pix_payments')
+              .update({ payment_confirmed: true })
+              .eq('id', record.id);
+
+            if (!updateError) {
+              updated = true;
+              console.log(`✅ pix_payments updated by gateway_transaction_id: ${transactionId}`);
+            }
+          }
         }
       }
 
       if (!updated) {
-        console.warn(`⚠️  Could not find pix_payment for external_id=${externalId} or txn=${transactionId}`);
+        console.warn(`⚠️  Could not confirm pix_payment for external_id=${externalId} or txn=${transactionId} (not found or amount mismatch)`);
       }
     } else if (status === 'PAID') {
       console.warn('⚠️  Payment PAID but Supabase not available');
@@ -369,8 +416,12 @@ app.post('/api/check-payment', async (req, res) => {
     if (external_reference) {
       query = query.eq('external_reference', external_reference);
     } else if (whatsapp) {
+      // Only check records created in the last 20 minutes to avoid
+      // returning old confirmed payments (e.g. previous Plan A purchases)
+      const recentCutoff = new Date(Date.now() - 20 * 60 * 1000).toISOString();
       query = query
         .eq('whatsapp', whatsapp.replace(/\D/g, ''))
+        .gte('created_at', recentCutoff)
         .order('created_at', { ascending: false })
         .limit(1);
     } else {
@@ -391,6 +442,50 @@ app.post('/api/check-payment', async (req, res) => {
     });
   } catch (error) {
     return res.status(500).json({ error: 'Erro ao verificar pagamento' });
+  }
+});
+
+// ─── POST /api/check-access ─────────────────────────────────────────────────────
+// Checks if a whatsapp number has a valid premium (Plan B) payment within 7 days.
+// Plan A (basic) NEVER grants automatic access – always requires a new purchase.
+app.post('/api/check-access', async (req, res) => {
+  try {
+    if (!supabase) {
+      return res.json({ hasAccess: false });
+    }
+
+    const { whatsapp } = req.body;
+    if (!whatsapp) {
+      return res.json({ hasAccess: false });
+    }
+
+    const cleanWa = whatsapp.replace(/\D/g, '');
+    const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+    const { data, error } = await supabase
+      .from('pix_payments')
+      .select('id, plan_id, created_at')
+      .eq('whatsapp', cleanWa)
+      .eq('payment_confirmed', true)
+      .eq('plan_id', 'premium')
+      .gte('created_at', sevenDaysAgo)
+      .order('created_at', { ascending: false })
+      .limit(1);
+
+    if (error) {
+      console.error('check-access error:', error.message);
+      return res.json({ hasAccess: false });
+    }
+
+    const hasAccess = Array.isArray(data) && data.length > 0;
+    return res.json({
+      hasAccess,
+      plan_id: hasAccess ? data[0].plan_id : null,
+      paid_at: hasAccess ? data[0].created_at : null
+    });
+  } catch (err) {
+    console.error('check-access error:', err);
+    return res.json({ hasAccess: false });
   }
 });
 
