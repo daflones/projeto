@@ -191,18 +191,18 @@ const QRCodePix = ({ amount, email, phone, whatsapp, nome, planId, planName, has
   }
 
   return (
-    <div className="glass-card p-8 text-center warning-glow">
-      <div className="mb-6">
-        <h3 className="text-2xl font-bold mb-3 text-gray-800">
+    <div className="glass-card p-4 text-center warning-glow sm:p-8">
+      <div className="mb-4 sm:mb-6">
+        <h3 className="text-lg font-bold mb-2 text-gray-800 sm:text-2xl sm:mb-3">
           Pagamento via PIX
         </h3>
-        <p className="text-gray-600 mb-4 text-sm">
+        <p className="text-gray-600 mb-2 text-xs sm:mb-4 sm:text-sm">
           Escaneie o QR Code ou copie o código PIX
         </p>
-        <div className="text-3xl font-bold text-red-600 mb-2">
+        <div className="text-2xl font-bold text-red-600 mb-1 sm:text-3xl sm:mb-2">
           R$ {amount.toFixed(2).replace('.', ',')}
         </div>
-        <div className="text-red-600 font-semibold text-sm">
+        <div className="text-red-600 font-semibold text-xs sm:text-sm">
           Expira em: {formatTime(timeLeft)}
         </div>
       </div>
@@ -241,19 +241,19 @@ const QRCodePix = ({ amount, email, phone, whatsapp, nome, planId, planName, has
 
       {/* QR Code Image (base64 from gateway) */}
       {qrCodeImage && !error && (
-        <div className="bg-white p-4 rounded-xl mb-6 mx-auto w-fit">
+        <div className="bg-white p-3 rounded-xl mb-4 mx-auto w-fit sm:p-4 sm:mb-6">
           <img
             src={qrCodeImage}
             alt="QR Code PIX"
-            className="w-[200px] h-[200px]"
+            className="w-[160px] h-[160px] sm:w-[200px] sm:h-[200px]"
           />
         </div>
       )}
 
       {/* PIX Copia e Cola */}
       {pixCode && !error && (
-        <div className="mb-6">
-          <label className="block text-sm font-semibold text-gray-800 mb-2">
+        <div className="mb-4 sm:mb-6">
+          <label className="block text-xs font-semibold text-gray-800 mb-1.5 sm:text-sm sm:mb-2">
             Código PIX (Copia e Cola):
           </label>
           <div className="flex items-center space-x-2">
@@ -284,11 +284,11 @@ const QRCodePix = ({ amount, email, phone, whatsapp, nome, planId, planName, has
       )}
 
       {/* Instructions */}
-      <div className="bg-gray-50 border-2 border-gray-200 p-4 rounded-xl mb-6 text-left">
-        <h4 className="font-bold text-gray-800 mb-3 text-base">
+      <div className="bg-gray-50 border border-gray-200 p-3 rounded-lg mb-4 text-left sm:border-2 sm:p-4 sm:rounded-xl sm:mb-6">
+        <h4 className="font-bold text-gray-800 mb-2 text-sm sm:mb-3 sm:text-base">
           Como pagar:
         </h4>
-        <div className="text-gray-700 text-sm space-y-2">
+        <div className="text-gray-700 text-xs space-y-1.5 sm:text-sm sm:space-y-2">
           <div className="font-medium">1. Abra o app do seu banco</div>
           <div className="font-medium">2. Escolha a opção PIX</div>
           <div className="font-medium">3. Escaneie o QR Code ou cole o código</div>

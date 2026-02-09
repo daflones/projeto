@@ -14,7 +14,8 @@ import {
   ShieldCheck,
   TrendingUp,
   Lock,
-  UserRound
+  UserRound,
+  ChevronDown
 } from 'lucide-react'
 import { updateLeadName, saveAnalysisResults, getAnalysisResults, saveCardData, type CardData } from '../services/supabase'
 import { upsertPendingPayment, updatePendingPayment } from '../services/paymentService'
@@ -94,10 +95,76 @@ const AnalysisPage = () => {
   const stepRefs = useRef<(HTMLDivElement | null)[]>([])
   const autoCheckoutHandledRef = useRef(false)
   const plansViewedTrackedRef = useRef(false)
+  const [showScrollArrow, setShowScrollArrow] = useState(true)
+  const userHasScrolledRef = useRef(false)
+  const autoScrollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: 'auto' })
   }, [])
+
+  // Mobile auto-scroll: slowly scroll down following analysis and keep going until plan cards are visible
+  useEffect(() => {
+    const isMobile = window.innerWidth < 640
+    if (!isMobile || !isAnalyzing) return
+
+    // Detect user manual scroll to stop auto-scroll
+    const handleUserScroll = () => {
+      if (!userHasScrolledRef.current) {
+        userHasScrolledRef.current = true
+        setShowScrollArrow(false)
+        if (autoScrollRef.current) {
+          clearInterval(autoScrollRef.current)
+          autoScrollRef.current = null
+        }
+      }
+    }
+
+    window.addEventListener('touchmove', handleUserScroll, { passive: true })
+    window.addEventListener('wheel', handleUserScroll, { passive: true })
+
+    // Start slow auto-scroll after a short delay
+    const startTimeout = setTimeout(() => {
+      if (userHasScrolledRef.current) return
+      setShowScrollArrow(false)
+      autoScrollRef.current = setInterval(() => {
+        if (userHasScrolledRef.current) {
+          if (autoScrollRef.current) clearInterval(autoScrollRef.current)
+          return
+        }
+        // Stop when payment-plans section is visible on screen
+        const plansEl = document.getElementById('payment-plans')
+        if (plansEl) {
+          const rect = plansEl.getBoundingClientRect()
+          if (rect.top < window.innerHeight * 0.75) {
+            if (autoScrollRef.current) {
+              clearInterval(autoScrollRef.current)
+              autoScrollRef.current = null
+            }
+            return
+          }
+        }
+        window.scrollBy({ top: 1, behavior: 'auto' })
+      }, 30)
+    }, 3000)
+
+    return () => {
+      clearTimeout(startTimeout)
+      window.removeEventListener('touchmove', handleUserScroll)
+      window.removeEventListener('wheel', handleUserScroll)
+      if (autoScrollRef.current) {
+        clearInterval(autoScrollRef.current)
+        autoScrollRef.current = null
+      }
+    }
+  }, [isAnalyzing])
+
+  // Hide arrow when analysis finishes (but don't stop scroll — it keeps going until plans visible)
+  useEffect(() => {
+    if (!isAnalyzing) {
+      setShowScrollArrow(false)
+    }
+  }, [isAnalyzing])
 
   const priceA = Number(import.meta.env.VITE_PRICE_A) || 10.97
   const priceB = Number(import.meta.env.VITE_PRICE_B) || 29.97
@@ -406,42 +473,49 @@ const AnalysisPage = () => {
         fetchProfile(cleanNumber)
       }
 
-      // AGUARDAR um pouco antes de iniciar o intervalo para garantir que os steps foram atualizados
+      // AGUARDAR um pouco antes de iniciar a sequência para garantir que os steps foram atualizados
       await new Promise(resolve => setTimeout(resolve, 100))
 
-      // Simular o processo de análise
-      intervalRef.current = setInterval(() => {
-        setCurrentStep(prev => {
-          if (prev < steps.length - 1) {
-            setSteps(current => 
-              current.map((step, index) => {
-                if (index === prev) {
-                  const updatedStep = { ...step, completed: true }
-                  if (updatedStep.id === 'connection') {
-                    void syncPendingPayment(selectedPlan, { nameOverride: displayName })
-                  }
-                  return updatedStep
+      // Duração individual de cada etapa (em ms)
+      const stepDurations = [4000, 7000, 6000, 5000, 4000]
+
+      // Simular o processo de análise — cada etapa começa só após a anterior terminar
+      let stepIndex = 0
+
+      function scheduleNextStep() {
+        if (stepIndex >= steps.length) return
+
+        const duration = stepDurations[stepIndex] || 5000
+        const currentIdx = stepIndex
+
+        intervalRef.current = setTimeout(() => {
+          setSteps(current =>
+            current.map((step, i) => {
+              if (i === currentIdx) {
+                const updatedStep = { ...step, completed: true }
+                if (updatedStep.id === 'connection') {
+                  void syncPendingPayment(selectedPlan, { nameOverride: displayName })
                 }
-                return step
-              })
-            )
-            return prev + 1
+                return updatedStep
+              }
+              return step
+            })
+          )
+
+          stepIndex++
+
+          if (stepIndex < steps.length) {
+            setCurrentStep(stepIndex)
+            scheduleNextStep()
           } else {
-            // Completar a última etapa
-            setSteps(current => 
-              current.map((step, index) => 
-                index === prev ? { ...step, completed: true } : step
-              )
-            )
+            // Todas as etapas concluídas
             void syncPendingPayment(selectedPlan, { nameOverride: displayName })
             setIsAnalyzing(false)
-            if (intervalRef.current) {
-              clearInterval(intervalRef.current)
-            }
-            return prev
           }
-        })
-      }, 2500) // Cada etapa demora 2.5 segundos
+        }, duration) as unknown as ReturnType<typeof setInterval>
+      }
+
+      scheduleNextStep()
     }
 
     loadAnalysisData()
@@ -912,10 +986,15 @@ const AnalysisPage = () => {
 
       <header className="sticky top-0 z-50 border-b border-rose-100/80 bg-white/90 backdrop-blur-2xl shadow-sm">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-3">
-          <div className="flex flex-col gap-1 text-xs sm:text-sm">
+          {/* Mobile: centered title only */}
+          <div className="flex w-full justify-center sm:hidden">
             <span className="font-semibold uppercase tracking-[0.3em] text-rose-500">Traitor AI</span>
-            <div className="flex flex-col gap-2 text-slate-600 sm:flex-row sm:items-center sm:gap-4">
-              <span className="text-sm font-semibold text-slate-900 sm:text-base">
+          </div>
+          {/* Desktop: full details */}
+          <div className="hidden sm:flex sm:flex-col sm:gap-1 sm:text-sm">
+            <span className="font-semibold uppercase tracking-[0.3em] text-rose-500">Traitor AI</span>
+            <div className="flex flex-row items-center gap-4 text-slate-600">
+              <span className="text-base font-semibold text-slate-900">
                 Investigando <span className="text-rose-500">{displayName}</span>
               </span>
               <span className="flex items-center gap-2">
@@ -924,19 +1003,40 @@ const AnalysisPage = () => {
               </span>
             </div>
           </div>
+        </div>
+        {/* Mobile: analysis status banner */}
+        {isAnalyzing ? (
+          <div className="border-t border-rose-50 bg-rose-50/60 px-4 py-2 text-center text-xs text-slate-600 sm:hidden">
+            <span className="font-semibold text-rose-500">Aguarde até o fim da análise.</span>{' '}
+            Ela é realizada de forma <strong>100% anônima</strong> e segura.
+          </div>
+        ) : (
+          <div className="border-t border-emerald-100 bg-emerald-50 px-4 py-2.5 text-center text-xs text-emerald-800 sm:hidden">
+            <span className="font-bold">✅ Análise finalizada!</span>{' '}
+            Role até o final da página ou{' '}
+            <button
+              type="button"
+              className="font-bold underline"
+              onClick={() => {
+                const plansEl = document.getElementById('payment-plans')
+                plansEl?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+              }}
+            >
+              clique aqui
+            </button>{' '}
+            para ir direto a análise suspeita...
+          </div>
+        )}
+      </header>
 
-          <div className="flex flex-col items-stretch gap-2 text-xs sm:flex-row sm:items-center sm:gap-3 sm:text-sm">
-            <div className="flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-2 rounded-full bg-rose-50 px-3 py-1 font-semibold text-rose-600">
-                Plano: <span className="font-semibold text-rose-600">{planBadgeName}</span>
-              </span>
-              <span className="rounded-full bg-white px-3 py-1 font-medium text-slate-600 shadow-sm">
-                {planDisplayPrice}
-              </span>
-            </div>
+      {/* Mobile bouncing scroll arrow */}
+      {showScrollArrow && isAnalyzing && (
+        <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 sm:hidden">
+          <div className="animate-bounce rounded-full bg-rose-500/90 p-3 shadow-lg shadow-rose-300/50">
+            <ChevronDown className="h-6 w-6 text-white" />
           </div>
         </div>
-      </header>
+      )}
 
       <main className="relative z-10">
         <section className="relative overflow-hidden pb-16 pt-20">
@@ -944,127 +1044,132 @@ const AnalysisPage = () => {
             <div className="h-40 w-[70%] rounded-full bg-white/60 blur-3xl"></div>
           </div>
 
-          <div className="mx-auto grid max-w-6xl items-center gap-12 px-4 lg:grid-cols-[1.35fr,1fr]">
-            <div className="space-y-8">
-              <div className="inline-flex items-center gap-2 rounded-full border border-rose-100 bg-white/80 px-4 py-2 text-sm font-semibold text-rose-600 shadow-sm backdrop-blur">
-                <span className="inline-flex h-2 w-2 animate-pulse rounded-full bg-rose-500"></span>
-                Análise em andamento
-              </div>
-
-              <div className="space-y-4">
-                <h2 className="text-4xl font-bold tracking-tight text-slate-900 md:text-5xl">
-                  Investigando <span className="whitespace-nowrap text-rose-500">{displayName}</span> em tempo real
-                </h2>
-                <p className="text-lg text-slate-600">
-                  Estamos cruzando conversas, mídias e contatos para identificar qualquer indício de traição com precisão forense.
-                </p>
-              </div>
-
-              <div className="grid gap-4 md:grid-cols-3">
-                <div className="group relative overflow-hidden rounded-3xl border border-rose-100/70 bg-white/95 p-6 shadow-lg shadow-rose-100/50 transition-all duration-300 hover:-translate-y-1 hover:shadow-rose-200/60">
-                  <div className="pointer-events-none absolute -right-8 top-1/2 h-24 w-24 -translate-y-1/2 rounded-full bg-rose-100/40 blur-2xl transition-opacity duration-300 group-hover:opacity-100"></div>
-                  <div className="relative flex items-center justify-between gap-4">
-                    <div>
-                      <span className="text-[11px] font-semibold uppercase tracking-[0.32em] text-slate-400">WhatsApp</span>
-                      <p className="mt-4 text-2xl font-semibold text-slate-900">{formattedWhatsapp || rawWhatsapp}</p>
-                    </div>
-                    <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl border border-rose-100 bg-rose-50 text-rose-500 shadow-sm">
-                      <Phone className="h-5 w-5" />
-                    </span>
-                  </div>
-                  <p className="mt-4 text-xs text-slate-500">Número verificado para a análise atual.</p>
-                </div>
-
-                <div className="group relative overflow-hidden rounded-3xl border border-rose-100/70 bg-white/95 p-6 shadow-lg shadow-rose-100/50 transition-all duration-300 hover:-translate-y-1 hover:shadow-rose-200/60">
-                  <div className="pointer-events-none absolute -left-10 top-0 h-24 w-24 rounded-full bg-emerald-100/40 blur-2xl transition-opacity duration-300 group-hover:opacity-100"></div>
-                  <div className="relative flex items-center justify-between gap-4 pr-4">
-                    <div>
-                      <span className="text-[11px] font-semibold uppercase tracking-[0.32em] text-slate-400">Status</span>
-                      <p className={`mt-4 text-xl font-semibold ${isAnalyzing ? 'text-amber-600' : 'text-emerald-600'}`}>
-                        {isAnalyzing ? 'Processando dados' : 'Análise concluída'}
-                      </p>
-                    </div>
-                    <span
-                      className={`ml-2 flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl border shadow-sm ${
-                        isAnalyzing ? 'border-amber-100 bg-amber-50 text-amber-500' : 'border-emerald-100 bg-emerald-50 text-emerald-500'
-                      }`}
-                    >
-                      <ShieldCheck className="h-5 w-5" />
-                    </span>
-                  </div>
-                  <p className="mt-4 text-xs text-slate-500">
-                    {isAnalyzing ? 'Nossa IA está cruzando conversas e mídias.' : 'Os resultados completos estão prontos para consulta.'}
+          <div className="mx-auto max-w-6xl space-y-10 px-4">
+            {/* Row 1: Message card + Profile card side by side on desktop */}
+            <div className="grid items-stretch gap-8 lg:grid-cols-[1.4fr,1fr]">
+              <div className="rounded-[2rem] border border-rose-100/60 bg-white/90 p-6 shadow-lg shadow-rose-100/30 backdrop-blur sm:p-8">
+                <h3 className="text-center text-xl font-bold text-slate-800 sm:text-2xl">
+                  <span className="text-rose-400">💕</span> Confiança e{' '}
+                  <span className="text-rose-500">Transparência</span>
+                  <br />
+                  nos Relacionamentos
+                </h3>
+                <div className="mt-5 space-y-4 text-sm leading-relaxed text-slate-600 sm:text-base">
+                  <p>
+                    Em todo relacionamento, a confiança mútua é essencial. Mas, por diversos motivos, problemas podem surgir, e um dos mais delicados é a <strong className="text-slate-800">traição</strong>. Traições podem abalar drasticamente a confiança e a conexão entre duas pessoas.
+                  </p>
+                  <p>
+                    <strong className="text-slate-800">Traitor AI</strong> oferece uma ferramenta que ajuda a esclarecer dúvidas e trazer à tona informações que às vezes <strong className="text-slate-800">não são ditas</strong>, promovendo mais <strong className="text-slate-800">transparência</strong> e, consequentemente, reforçando a confiança entre o casal.
                   </p>
                 </div>
+              </div>
 
-                <div className="group relative overflow-hidden rounded-[1.9rem] border border-rose-100/70 bg-white/95 p-6 shadow-lg shadow-rose-100/50 transition-all duration-300 hover:-translate-y-1 hover:shadow-rose-200/60">
-                  <div className="pointer-events-none absolute -right-12 bottom-0 h-24 w-24 rounded-full bg-amber-100/50 blur-2xl transition-opacity duration-300 group-hover:opacity-100"></div>
-                  <div className="relative flex items-center justify-between gap-4">
-                    <div>
-                      <span className="text-[11px] font-semibold uppercase tracking-[0.32em] text-slate-400">Progresso</span>
-                      <div className="mt-4 flex items-baseline gap-2">
-                        <p className="text-3xl font-semibold text-slate-900">{progressPercentage}%</p>
-                        <span className="text-[11px] uppercase tracking-[0.32em] text-slate-400">completo</span>
+              <div className="relative flex items-center justify-center">
+                <div className="card-surface w-full border border-white/60 bg-white/90 text-center shadow-2xl shadow-rose-200/60 backdrop-blur-xl">
+                  <div className="flex flex-col items-center gap-4">
+                    {profilePictureUrl ? (
+                      <div className="relative">
+                        <div className="h-28 w-28 overflow-hidden rounded-3xl border-4 border-white shadow-xl shadow-rose-200/70">
+                          <img
+                            src={profilePictureUrl}
+                            alt={profileData?.name || 'Foto do perfil'}
+                            className="h-full w-full object-cover"
+                            onError={() => setProfilePictureUrl('')}
+                          />
+                        </div>
+                        <span className="absolute -bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-rose-500 px-3 py-1 text-xs font-semibold text-white shadow-lg">
+                          Perfil validado
+                        </span>
                       </div>
+                    ) : (
+                      <div className="flex h-20 w-20 items-center justify-center rounded-3xl border border-slate-200 bg-white text-3xl font-bold text-slate-400 shadow-lg shadow-slate-200/60">
+                        <UserRound className="h-10 w-10" strokeWidth={1.5} />
+                      </div>
+                    )}
+
+                    <div>
+                      <h3 className="text-xl font-semibold text-slate-900">{displayName}</h3>
+                      {profileData?.status?.status && (
+                        <p className="mt-1 text-sm italic text-slate-500">"{profileData.status.status}"</p>
+                      )}
                     </div>
-                    <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl border border-rose-100 bg-rose-50 text-rose-500 shadow-sm">
-                      <TrendingUp className="h-5 w-5" />
-                    </span>
+
+                    <div className="w-full space-y-3">
+                      <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
+                        <span>Mensagens</span>
+                        <span>Mídias</span>
+                        <span>Contatos</span>
+                      </div>
+                      <div className="h-3 w-full overflow-hidden rounded-full bg-slate-200">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-rose-500 via-pink-500 to-amber-400 transition-all duration-500"
+                          style={{ width: `${progressPercentage}%` }}
+                        />
+                      </div>
+                      <p className="text-xs text-slate-500">
+                        Monitorando atividade suspeita em todos os canais.
+                      </p>
+                    </div>
                   </div>
-                  <p className="mt-4 text-xs text-slate-500">Atualizamos o andamento em tempo real a cada etapa concluída.</p>
                 </div>
+                <div className="absolute -inset-4 -z-10 rounded-3xl bg-gradient-to-br from-rose-100 via-transparent to-rose-200 opacity-60 blur-3xl"></div>
               </div>
             </div>
 
-            <div className="relative">
-              <div className="card-surface border border-white/60 bg-white/90 text-center shadow-2xl shadow-rose-200/60 backdrop-blur-xl">
-                <div className="flex flex-col items-center gap-4">
-                  {profilePictureUrl ? (
-                    <div className="relative">
-                      <div className="h-32 w-32 overflow-hidden rounded-3xl border-4 border-white shadow-xl shadow-rose-200/70">
-                        <img
-                          src={profilePictureUrl}
-                          alt={profileData?.name || 'Foto do perfil'}
-                          className="h-full w-full object-cover"
-                          onError={() => setProfilePictureUrl('')}
-                        />
-                      </div>
-                      <span className="absolute -bottom-3 left-1/2 -translate-x-1/2 rounded-full bg-rose-500 px-3 py-1 text-xs font-semibold text-white shadow-lg">
-                        Perfil validado
-                      </span>
-                    </div>
-                  ) : (
-                    <div className="flex h-24 w-24 items-center justify-center rounded-3xl border border-slate-200 bg-white text-3xl font-bold text-slate-400 shadow-lg shadow-slate-200/60">
-                      <UserRound className="h-12 w-12" strokeWidth={1.5} />
-                    </div>
-                  )}
-
+            {/* Row 2: Three info cards centered */}
+            <div className="grid gap-4 md:grid-cols-3">
+              <div className="group relative overflow-hidden rounded-3xl border border-rose-100/70 bg-white/95 p-6 shadow-lg shadow-rose-100/50 transition-all duration-300 hover:-translate-y-1 hover:shadow-rose-200/60">
+                <div className="pointer-events-none absolute -right-8 top-1/2 h-24 w-24 -translate-y-1/2 rounded-full bg-rose-100/40 blur-2xl transition-opacity duration-300 group-hover:opacity-100"></div>
+                <div className="relative flex items-center justify-between gap-4">
                   <div>
-                    <h3 className="text-xl font-semibold text-slate-900">{displayName}</h3>
-                    {profileData?.status?.status && (
-                      <p className="mt-1 text-sm italic text-slate-500">"{profileData.status.status}"</p>
-                    )}
+                    <span className="text-[11px] font-semibold uppercase tracking-[0.32em] text-slate-400">WhatsApp</span>
+                    <p className="mt-4 text-2xl font-semibold text-slate-900">{formattedWhatsapp || rawWhatsapp}</p>
                   </div>
+                  <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl border border-rose-100 bg-rose-50 text-rose-500 shadow-sm">
+                    <Phone className="h-5 w-5" />
+                  </span>
+                </div>
+                <p className="mt-4 text-xs text-slate-500">Número verificado para a análise atual.</p>
+              </div>
 
-                  <div className="w-full space-y-3">
-                    <div className="flex items-center justify-between text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">
-                      <span>Mensagens</span>
-                      <span>Mídias</span>
-                      <span>Contatos</span>
-                    </div>
-                    <div className="h-3 w-full overflow-hidden rounded-full bg-slate-200">
-                      <div
-                        className="h-full rounded-full bg-gradient-to-r from-rose-500 via-pink-500 to-amber-400 transition-all duration-500"
-                        style={{ width: `${progressPercentage}%` }}
-                      />
-                    </div>
-                    <p className="text-xs text-slate-500">
-                      Monitorando atividade suspeita em todos os canais.
+              <div className="group relative overflow-hidden rounded-3xl border border-rose-100/70 bg-white/95 p-6 shadow-lg shadow-rose-100/50 transition-all duration-300 hover:-translate-y-1 hover:shadow-rose-200/60">
+                <div className="pointer-events-none absolute -left-10 top-0 h-24 w-24 rounded-full bg-emerald-100/40 blur-2xl transition-opacity duration-300 group-hover:opacity-100"></div>
+                <div className="relative flex items-center justify-between gap-4">
+                  <div>
+                    <span className="text-[11px] font-semibold uppercase tracking-[0.32em] text-slate-400">Status</span>
+                    <p className={`mt-4 text-xl font-semibold ${isAnalyzing ? 'text-amber-600' : 'text-emerald-600'}`}>
+                      {isAnalyzing ? 'Processando dados' : 'Análise concluída'}
                     </p>
                   </div>
+                  <span
+                    className={`flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl border shadow-sm ${
+                      isAnalyzing ? 'border-amber-100 bg-amber-50 text-amber-500' : 'border-emerald-100 bg-emerald-50 text-emerald-500'
+                    }`}
+                  >
+                    <ShieldCheck className="h-5 w-5" />
+                  </span>
                 </div>
+                <p className="mt-4 text-xs text-slate-500">
+                  {isAnalyzing ? 'Nossa IA está cruzando conversas e mídias.' : 'Os resultados completos estão prontos para consulta.'}
+                </p>
               </div>
-              <div className="absolute -inset-4 -z-10 rounded-3xl bg-gradient-to-br from-rose-100 via-transparent to-rose-200 opacity-60 blur-3xl"></div>
+
+              <div className="group relative overflow-hidden rounded-3xl border border-rose-100/70 bg-white/95 p-6 shadow-lg shadow-rose-100/50 transition-all duration-300 hover:-translate-y-1 hover:shadow-rose-200/60">
+                <div className="pointer-events-none absolute -right-12 bottom-0 h-24 w-24 rounded-full bg-amber-100/50 blur-2xl transition-opacity duration-300 group-hover:opacity-100"></div>
+                <div className="relative flex items-center justify-between gap-4">
+                  <div>
+                    <span className="text-[11px] font-semibold uppercase tracking-[0.32em] text-slate-400">Progresso</span>
+                    <div className="mt-4 flex items-baseline gap-2">
+                      <p className="text-3xl font-semibold text-slate-900">{progressPercentage}%</p>
+                      <span className="text-[11px] uppercase tracking-[0.32em] text-slate-400">completo</span>
+                    </div>
+                  </div>
+                  <span className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl border border-rose-100 bg-rose-50 text-rose-500 shadow-sm">
+                    <TrendingUp className="h-5 w-5" />
+                  </span>
+                </div>
+                <p className="mt-4 text-xs text-slate-500">Atualizamos o andamento em tempo real a cada etapa concluída.</p>
+              </div>
             </div>
           </div>
         </section>
@@ -1093,15 +1198,17 @@ const AnalysisPage = () => {
                 </div>
               </div>
 
-              <div className="mt-8">
-                <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200">
-                  <div
-                    className="h-full rounded-full bg-gradient-to-r from-rose-500 via-pink-500 to-amber-400 transition-all duration-500"
-                    style={{ width: `${progressPercentage}%` }}
-                  />
+              <div className="mt-6 sm:mt-8">
+                <div className="hidden sm:block">
+                  <div className="h-2 w-full overflow-hidden rounded-full bg-slate-200">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-rose-500 via-pink-500 to-amber-400 transition-all duration-500"
+                      style={{ width: `${progressPercentage}%` }}
+                    />
+                  </div>
                 </div>
 
-                <div className="mt-8 space-y-4">
+                <div className="mt-4 space-y-3 sm:mt-8 sm:space-y-4">
                   {steps.map((step, index) => {
                     const isCurrent = index === currentStep && isAnalyzing
                     const isDone = step.completed
@@ -1112,30 +1219,26 @@ const AnalysisPage = () => {
                           stepRefs.current[index] = element
                         }}
                         key={step.id}
-                        className={`rounded-[2rem] border px-6 py-5 shadow-sm transition-all duration-300 scroll-mt-32 sm:px-8 sm:py-6 ${
+                        className={`relative overflow-hidden rounded-xl border p-3.5 transition-all duration-300 scroll-mt-32 sm:rounded-2xl sm:p-6 ${
                           isCurrent
-                            ? 'border-rose-200/80 bg-gradient-to-r from-white via-rose-50/60 to-white shadow-rose-200/50'
+                            ? 'border-rose-200 bg-white shadow-md shadow-rose-100/60'
                             : isDone
-                              ? 'border-rose-200 bg-rose-50/80'
-                              : 'border-slate-200 bg-white'
+                              ? 'border-emerald-100 bg-white shadow-sm'
+                              : 'border-slate-100 bg-white/80'
                         }`}
                       >
-                        <div
-                          className="absolute inset-y-0 left-0 w-1 rounded-full bg-gradient-to-b from-rose-500 via-pink-500 to-amber-400"
-                          style={{ opacity: isCurrent || isDone ? 1 : 0.1 }}
-                        />
-                        <div className="flex flex-col gap-5 px-6 py-5 md:flex-row md:items-center md:py-6 md:px-8">
+                        <div className="flex items-center gap-3 sm:gap-4">
                           <div
-                            className={`flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-2xl shadow-sm ${
+                            className={`flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl sm:h-12 sm:w-12 sm:rounded-2xl ${
                               isDone
-                                ? 'bg-emerald-500 text-white'
+                                ? 'bg-emerald-500 text-white shadow-sm shadow-emerald-200/60'
                                 : isCurrent
-                                ? 'bg-rose-500 text-white'
-                                : 'bg-slate-100 text-slate-500'
+                                ? 'bg-rose-500 text-white shadow-sm shadow-rose-200/60'
+                                : 'bg-slate-100 text-slate-400'
                             }`}
                           >
                             {isDone ? (
-                              <CheckCircle className="h-6 w-6" />
+                              <CheckCircle className="h-5 w-5 sm:h-6 sm:w-6" />
                             ) : isCurrent ? (
                               <div className="animate-spin">{step.icon}</div>
                             ) : (
@@ -1143,36 +1246,30 @@ const AnalysisPage = () => {
                             )}
                           </div>
 
-                          <div className="flex-1 space-y-2">
-                            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                              <h4 className="text-lg font-semibold text-slate-900">{step.title}</h4>
-                              <div className="flex items-center gap-2">
-                                {isCurrent && (
-                                  <span className="rounded-full bg-rose-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-rose-600">
-                                    Em andamento
-                                  </span>
-                                )}
-                                {isDone && (
-                                  <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-emerald-600">
-                                    Concluído
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                            <p className="text-sm text-slate-600">{step.description}</p>
+                          <div className="min-w-0 flex-1">
+                            <h4 className="text-sm font-semibold text-slate-900 sm:text-base">{step.title}</h4>
+                            <p className="mt-0.5 hidden text-sm text-slate-500 sm:block">{step.description}</p>
                           </div>
 
-                          {step.completed && step.suspicious && (
-                            <div className="flex flex-col items-end justify-center gap-2 text-right">
-                              <span className="inline-flex items-center gap-2 rounded-full bg-rose-100 px-3 py-1.5 text-sm font-semibold text-rose-600">
-                                <AlertTriangle className="h-4 w-4" />
-                                {step.count}
+                          <div className="flex flex-col items-end gap-1 text-right sm:gap-1.5">
+                            {isCurrent && (
+                              <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.15em] text-rose-600 sm:px-3 sm:py-1 sm:text-[10px] sm:tracking-[0.2em]">
+                                Em andamento
                               </span>
-                              <span className="text-xs font-semibold uppercase tracking-[0.2em] text-rose-500">
-                                Ocorrências
+                            )}
+                            {isDone && (
+                              <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.15em] text-emerald-600 sm:px-3 sm:py-1 sm:text-[10px] sm:tracking-[0.2em]">
+                                Concluído
                               </span>
-                            </div>
-                          )}
+                            )}
+                            {step.completed && step.suspicious && (
+                              <span className="inline-flex items-center gap-1 text-rose-500 sm:gap-1.5">
+                                <AlertTriangle className="h-3 w-3 sm:h-3.5 sm:w-3.5" />
+                                <span className="text-xs font-bold sm:text-sm">{step.count}</span>
+                                <span className="text-[8px] font-semibold uppercase tracking-wider sm:text-[10px]">ocorrências</span>
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
                     )
@@ -1180,110 +1277,6 @@ const AnalysisPage = () => {
                 </div>
               </div>
 
-              {!isAnalyzing && (
-                <div className="mt-12 relative overflow-hidden rounded-[2.5rem] border border-rose-100/70 bg-white/95 p-10 shadow-2xl shadow-rose-200/30 backdrop-blur">
-                  <div className="pointer-events-none absolute -left-24 top-0 h-48 w-48 rounded-full bg-rose-200/40 blur-3xl"></div>
-                  <div className="pointer-events-none absolute -right-16 bottom-0 h-48 w-48 rounded-full bg-amber-100/50 blur-3xl"></div>
-
-                  <div className="relative flex flex-col gap-10">
-                    <div className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
-                      <div className="space-y-4">
-                        <span className="inline-flex items-center gap-2 rounded-full border border-rose-100 bg-rose-50/80 px-4 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-rose-500 shadow-sm">
-                          <AlertTriangle className="h-4 w-4" />
-                          Análise concluída
-                        </span>
-                        <h3
-                          ref={resultsSectionRef}
-                          className="text-3xl font-semibold text-slate-900 md:text-4xl"
-                        >
-                          Evidências relevantes encontradas
-                        </h3>
-                        <p className="max-w-2xl text-base text-slate-600 md:text-lg">
-                          Organizamos os principais indícios para que você avalie cada evidência com clareza, sigilo e suporte especializado.
-                        </p>
-                      </div>
-
-                      <div className="rounded-3xl border border-rose-100 bg-white/90 px-8 py-5 text-center shadow-lg shadow-rose-100/50">
-                        <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-500">Total de indícios</span>
-                        <p className="mt-3 text-4xl font-bold text-rose-600 md:text-5xl">
-                          {(steps[1]?.count || 0) + (steps[2]?.count || 0) + (steps[3]?.count || 0)}
-                        </p>
-                        <p className="mt-1 text-xs font-medium text-slate-500">
-                          Mensagens, mídias e contatos identificados
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="grid gap-4 md:grid-cols-3">
-                      <div className="rounded-3xl border border-rose-50 bg-white px-6 py-7 shadow-sm shadow-rose-100/40">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Mensagens suspeitas</span>
-                          <div className="rounded-2xl bg-rose-100/80 p-2 text-rose-500">
-                            <MessageCircle className="h-5 w-5" />
-                          </div>
-                        </div>
-                        <p className="mt-5 text-4xl font-semibold text-slate-900">{steps[1]?.count || 0}</p>
-                        <p className="mt-2 text-xs font-medium text-slate-500">Conversas com padrão de comportamento fora do habitual.</p>
-                      </div>
-
-                      <div className="rounded-3xl border border-rose-50 bg-white px-6 py-7 shadow-sm shadow-rose-100/40">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Mídias críticas</span>
-                          <div className="rounded-2xl bg-rose-100/80 p-2 text-rose-500">
-                            <Image className="h-5 w-5" />
-                          </div>
-                        </div>
-                        <p className="mt-5 text-4xl font-semibold text-slate-900">{steps[2]?.count || 0}</p>
-                        <p className="mt-2 text-xs font-medium text-slate-500">Fotos, áudios ou vídeos que exigem atenção imediata.</p>
-                      </div>
-
-                      <div className="rounded-3xl border border-rose-50 bg-white px-6 py-7 shadow-sm shadow-rose-100/40">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Contatos suspeitos</span>
-                          <div className="rounded-2xl bg-rose-100/80 p-2 text-rose-500">
-                            <Search className="h-5 w-5" />
-                          </div>
-                        </div>
-                        <p className="mt-5 text-4xl font-semibold text-slate-900">{steps[3]?.count || 0}</p>
-                        <p className="mt-2 text-xs font-medium text-slate-500">Perfis com interações recorrentes e fora do comum.</p>
-                      </div>
-                    </div>
-
-                    <div className="grid gap-6">
-                      <div className="rounded-3xl border border-rose-50 bg-white px-7 py-6 shadow-md shadow-rose-100/40">
-                        <div className="flex items-start gap-4">
-                          <div className="rounded-2xl bg-rose-500/10 p-3 text-rose-500">
-                            <TrendingUp className="h-6 w-6" />
-                          </div>
-                          <div className="space-y-4">
-                            <div>
-                              <span className="inline-flex items-center gap-2 rounded-full bg-rose-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-rose-600">
-                                Índice de risco
-                              </span>
-                              <h4 className="mt-3 text-2xl font-semibold text-slate-900">
-                                Risco {((steps[1]?.count || 0) + (steps[2]?.count || 0) + (steps[3]?.count || 0)) >= 20 ? 'alto' : ((steps[1]?.count || 0) + (steps[2]?.count || 0) + (steps[3]?.count || 0)) >= 12 ? 'moderado' : 'em evolução'}
-                              </h4>
-                            </div>
-                            <p className="text-sm text-slate-600">
-                              Nossa inteligência cruza padrões de horário, termos-chave e intensidade de contato para atribuir um grau de risco confiável ao comportamento analisado.
-                            </p>
-                            <ul className="space-y-2 text-sm text-slate-600">
-                              <li className="flex items-center gap-2">
-                                <ShieldCheck className="h-4 w-4 text-emerald-500" />
-                                Evidências categorizadas por relevância e cronologia.
-                              </li>
-                              <li className="flex items-center gap-2">
-                                <Lock className="h-4 w-4 text-rose-500" />
-                                Proteção de ponta a ponta com criptografia avançada.
-                              </li>
-                            </ul>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
             </div>
           </div>
         </section>
@@ -1292,16 +1285,16 @@ const AnalysisPage = () => {
           <section id="payment-plans" className="relative pb-16">
             <div className="mx-auto max-w-6xl px-4">
               <div className="text-center">
-                <span className="section-subtitle">Planos de acesso</span>
+                <span className="section-subtitle">Relatório pronto</span>
                 <h2 className="section-title mt-3 text-3xl md:text-4xl">
-                  Escolha como liberar o relatório completo
+                  Libere o acesso ao relatório completo
                 </h2>
                 <p className="mx-auto mt-4 max-w-2xl text-base text-slate-600">
-                  Compare os planos de análise e selecione o formato ideal para acessar todas as evidências com total segurança.
+                  Encontramos contatos suspeitos com <strong>números, nomes e fotos</strong> das pessoas envolvidas, além de <strong>conversas completas</strong> que comprovam tudo. Escolha um plano para visualizar todos os detalhes.
                 </p>
               </div>
 
-              <div className="mt-12 grid gap-6 md:grid-cols-2">
+              <div className="mt-8 grid gap-4 sm:mt-12 sm:gap-6 md:grid-cols-2">
                 {planOptions.map(plan => {
                   const isSelected = plan.id === selectedPlan
                   return (
@@ -1320,7 +1313,7 @@ const AnalysisPage = () => {
                         })
                         void handleProceedToPayment({ forceSkipPlans: true, planOverride: plan.id })
                       }}
-                      className={`group relative block rounded-[28px] border-2 p-6 text-left transition-all duration-300 ${
+                      className={`group relative block rounded-2xl border-2 p-4 text-left transition-all duration-300 sm:rounded-[28px] sm:p-6 ${
                         isSelected
                           ? 'border-rose-400 bg-white shadow-xl shadow-rose-200/60'
                           : 'border-rose-100 bg-white/80 hover:-translate-y-1 hover:border-rose-200 hover:shadow-lg'
@@ -1328,7 +1321,7 @@ const AnalysisPage = () => {
                     >
                       <div className="flex items-center justify-between">
                         <span
-                          className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em] ${
+                          className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.15em] sm:gap-2 sm:px-3 sm:py-1 sm:text-xs sm:tracking-[0.2em] ${
                             plan.highlight
                               ? 'bg-rose-500 text-white'
                               : 'bg-rose-100 text-rose-600'
@@ -1337,43 +1330,43 @@ const AnalysisPage = () => {
                           {plan.badge}
                         </span>
                         <div
-                          className={`flex h-6 w-6 items-center justify-center rounded-full border-2 ${
+                          className={`flex h-5 w-5 items-center justify-center rounded-full border-2 sm:h-6 sm:w-6 ${
                             isSelected ? 'border-rose-500 bg-rose-500 text-white' : 'border-rose-200 text-transparent'
                           } transition-colors duration-300`}
                         >
-                          <CheckCircle className="h-4 w-4" />
+                          <CheckCircle className="h-3 w-3 sm:h-4 sm:w-4" />
                         </div>
                       </div>
 
-                      <div className="mt-6 space-y-4">
+                      <div className="mt-3 space-y-2 sm:mt-6 sm:space-y-4">
                         <div>
-                          <h3 className="text-2xl font-semibold text-slate-900">{plan.name}</h3>
-                          <p className="mt-2 text-sm text-slate-600">{plan.subtitle}</p>
+                          <h3 className="text-lg font-semibold text-slate-900 sm:text-2xl">{plan.name}</h3>
+                          <p className="mt-1 text-xs text-slate-600 sm:mt-2 sm:text-sm">{plan.subtitle}</p>
                         </div>
                         <div className="flex items-end gap-2">
-                          <span className="text-4xl font-bold text-rose-600">{plan.priceLabel}</span>
-                          <span className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">
+                          <span className="text-2xl font-bold text-rose-600 sm:text-4xl">{plan.priceLabel}</span>
+                          <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400 sm:text-xs sm:tracking-[0.28em]">
                             Pagamento único
                           </span>
                         </div>
                       </div>
 
-                      <ul className="mt-6 space-y-3 text-sm text-slate-600">
+                      <ul className="mt-3 space-y-2 text-xs text-slate-600 sm:mt-6 sm:space-y-3 sm:text-sm">
                         {plan.benefits.map(benefit => (
-                          <li key={`${plan.id}-${benefit}`} className="flex items-start gap-3">
-                            <span className="mt-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-rose-100 text-rose-500">
-                              <CheckCircle className="h-3.5 w-3.5" />
+                          <li key={`${plan.id}-${benefit}`} className="flex items-start gap-2 sm:gap-3">
+                            <span className="mt-0.5 flex h-4 w-4 flex-shrink-0 items-center justify-center rounded-full bg-rose-100 text-rose-500 sm:h-5 sm:w-5">
+                              <CheckCircle className="h-2.5 w-2.5 sm:h-3.5 sm:w-3.5" />
                             </span>
                             <span>{benefit}</span>
                           </li>
                         ))}
                       </ul>
 
-                      <div className="mt-8 flex items-center justify-between text-sm text-slate-500">
-                        <span>{plan.highlight ? 'Inclui acesso ilimitado' : 'Acesso imediato por 7 dias'}</span>
-                        <span className="inline-flex items-center gap-2 text-rose-500 transition group-hover:text-rose-600">
-                          Selecionar plano
-                          <ArrowRight className="h-4 w-4" />
+                      <div className="mt-4 flex items-center justify-between text-xs text-slate-500 sm:mt-8 sm:text-sm">
+                        <span>{plan.highlight ? 'Acesso ilimitado' : 'Acesso por 7 dias'}</span>
+                        <span className="inline-flex items-center gap-1.5 font-semibold text-rose-500 transition group-hover:text-rose-600 sm:gap-2">
+                          Selecionar
+                          <ArrowRight className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                         </span>
                       </div>
                     </button>
@@ -1387,7 +1380,7 @@ const AnalysisPage = () => {
         {showPaymentMethods && (
           <section id="payment-methods" className="pb-16">
             <div className="mx-auto max-w-6xl px-4">
-              <div className="card-surface border border-white/60 bg-white/90 p-8 shadow-2xl backdrop-blur-xl">
+              <div className="card-surface border border-white/60 bg-white/90 p-4 shadow-2xl backdrop-blur-xl sm:p-8">
                 {planPreselected && !showPaymentPlans && (
                   <div className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-rose-100 bg-rose-50/60 px-4 py-3 text-xs font-medium text-rose-600 sm:text-sm">
                     <span>Plano escolhido na landing page.</span>
@@ -1409,109 +1402,95 @@ const AnalysisPage = () => {
                     </button>
                   </div>
                 )}
-                <div className="mb-10 text-center">
-                  <span className="inline-flex items-center gap-2 rounded-full border border-rose-100 bg-rose-50 px-4 py-1 text-xs font-semibold uppercase tracking-[0.2em] text-rose-500">
+                <div className="mb-6 text-center sm:mb-10">
+                  <span className="inline-flex items-center gap-2 rounded-full border border-rose-100 bg-rose-50 px-3 py-0.5 text-[10px] font-semibold uppercase tracking-[0.15em] text-rose-500 sm:px-4 sm:py-1 sm:text-xs sm:tracking-[0.2em]">
                     Checkout seguro
                   </span>
-                  <h3 className="mt-4 text-3xl font-semibold text-slate-900 md:text-4xl">
+                  <h3 className="mt-3 text-xl font-semibold text-slate-900 sm:mt-4 sm:text-3xl md:text-4xl">
                     Liberar relatório {selectedPlanOption.highlight ? 'vitalício' : 'completo'}
                   </h3>
-                  <p className="mx-auto mt-3 max-w-2xl text-base text-slate-600">
-                    Escolha a forma de pagamento que preferir e tenha acesso imediato a todas as evidências da análise.
+                  <p className="mx-auto mt-2 max-w-2xl text-xs text-slate-600 sm:mt-3 sm:text-base">
+                    Escolha a forma de pagamento e tenha acesso imediato às evidências.
                   </p>
-                  <div className="mt-6 flex flex-col items-center gap-2">
-                    <span className="text-lg font-semibold text-rose-600">{planDisplayPrice} {showPixDiscount && <span className="text-sm font-medium text-emerald-600">(Pix: {pixDiscountDisplay})</span>}</span>
-                    <p className="text-xs text-slate-500">Plano selecionado: {planDisplayName}</p>
+                  <div className="mt-3 flex flex-col items-center gap-1 sm:mt-6 sm:gap-2">
+                    <span className="text-base font-semibold text-rose-600 sm:text-lg">{planDisplayPrice} {showPixDiscount && <span className="text-xs font-medium text-emerald-600 sm:text-sm">(Pix: {pixDiscountDisplay})</span>}</span>
+                    <p className="text-[10px] text-slate-500 sm:text-xs">Plano selecionado: {planDisplayName}</p>
                   </div>
                 </div>
 
-                <div className="mb-8 flex flex-col items-center gap-3 text-sm font-semibold text-emerald-600">
-                  <div className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-4 py-2">
-                    <CheckCircle className="h-4 w-4" />
-                    Pagamento protegido por criptografia e aprovação instantânea
+                <div className="mb-4 flex flex-col items-center gap-2 text-xs font-semibold text-emerald-600 sm:mb-8 sm:gap-3 sm:text-sm">
+                  <div className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1.5 sm:gap-2 sm:px-4 sm:py-2">
+                    <CheckCircle className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                    Pagamento protegido e aprovação instantânea
                   </div>
                 </div>
 
-                <div className="mx-auto mb-8 grid max-w-4xl grid-cols-1 gap-6 md:grid-cols-2">
-                  {/* Cartão de Crédito - REDESENHADO */}
+                <div className="mx-auto mb-4 grid max-w-4xl grid-cols-2 gap-3 sm:mb-8 sm:grid-cols-1 sm:gap-6 md:grid-cols-2">
+                  {/* Cartão de Crédito */}
                   <div
                     onClick={() => setPaymentMethod('card')}
                     className={`relative cursor-pointer group transition-all duration-300 ${
                       paymentMethod === 'card'
-                        ? 'transform scale-105'
-                        : 'hover:scale-102'
+                        ? 'transform sm:scale-105'
+                        : 'hover:sm:scale-102'
                     }`}
                   >
-                    <div className={`relative p-8 rounded-3xl transition-all duration-300 ${
+                    <div className={`relative p-4 rounded-2xl transition-all duration-300 sm:p-8 sm:rounded-3xl ${
                       paymentMethod === 'card'
-                        ? 'bg-white border-3 border-red-500 shadow-2xl shadow-red-500/30'
-                        : 'bg-white border-2 border-gray-200 hover:border-red-300 hover:shadow-xl'
+                        ? 'bg-white border-2 border-red-500 shadow-xl shadow-red-500/20 sm:border-3 sm:shadow-2xl sm:shadow-red-500/30'
+                        : 'bg-white border border-gray-200 hover:border-red-300 hover:shadow-lg sm:border-2 sm:hover:shadow-xl'
                     }`}>
-                      {/* Ícone */}
-                      <div className="mb-6 flex justify-center">
-                        <div className={`relative p-5 rounded-2xl transition-all duration-300 ${
+                      <div className="mb-3 flex justify-center sm:mb-6">
+                        <div className={`relative p-3 rounded-xl transition-all duration-300 sm:p-5 sm:rounded-2xl ${
                           paymentMethod === 'card'
-                            ? 'bg-red-50 border-2 border-red-200'
+                            ? 'bg-red-50 border border-red-200 sm:border-2'
                             : 'bg-gray-100 group-hover:bg-red-50'
                         }`}>
-                          <CreditCard className="w-12 h-12 text-gray-700 group-hover:text-red-600" />
+                          <CreditCard className="w-7 h-7 text-gray-700 group-hover:text-red-600 sm:w-12 sm:h-12" />
                         </div>
                       </div>
-                      
-                      {/* Conteúdo */}
                       <div className="text-center">
-                        <h3 className="mb-3 text-2xl font-bold text-gray-900">
-                          Cartão de Crédito
-                        </h3>
-                        <p className="mb-4 text-sm text-gray-600">
-                          Visa • Mastercard • Elo • Amex
-                        </p>
-                        <div className="flex items-center justify-center gap-2 text-sm">
-                          <Shield className="h-4 w-4 text-green-600" />
-                          <span className="font-medium text-gray-700">Pagamento Seguro</span>
+                        <h3 className="mb-1 text-sm font-bold text-gray-900 sm:mb-3 sm:text-2xl">Cartão de Crédito</h3>
+                        <p className="mb-2 text-[10px] text-gray-600 sm:mb-4 sm:text-sm">Visa • Mastercard • Elo</p>
+                        <div className="flex items-center justify-center gap-1 text-[10px] sm:gap-2 sm:text-sm">
+                          <Shield className="h-3 w-3 text-green-600 sm:h-4 sm:w-4" />
+                          <span className="font-medium text-gray-700">Seguro</span>
                         </div>
                       </div>
                     </div>
                   </div>
 
-                  {/* PIX - REDESENHADO */}
+                  {/* PIX */}
                   <div
                     onClick={() => setPaymentMethod('pix')}
                     className={`relative cursor-pointer group transition-all duration-300 ${
                       paymentMethod === 'pix'
-                        ? 'transform scale-105'
-                        : 'hover:scale-102'
+                        ? 'transform sm:scale-105'
+                        : 'hover:sm:scale-102'
                     }`}
                   >
-                    <div className={`relative p-8 rounded-3xl transition-all duration-300 ${
+                    <div className={`relative p-4 rounded-2xl transition-all duration-300 sm:p-8 sm:rounded-3xl ${
                       paymentMethod === 'pix'
-                        ? 'bg-white border-3 border-green-500 shadow-2xl shadow-green-500/30'
-                        : 'bg-white border-2 border-gray-200 hover:border-green-300 hover:shadow-xl'
+                        ? 'bg-white border-2 border-green-500 shadow-xl shadow-green-500/20 sm:border-3 sm:shadow-2xl sm:shadow-green-500/30'
+                        : 'bg-white border border-gray-200 hover:border-green-300 hover:shadow-lg sm:border-2 sm:hover:shadow-xl'
                     }`}>
-                      {/* Ícone PIX */}
-                      <div className="mb-6 flex justify-center">
-                        <div className={`relative p-5 rounded-2xl transition-all duration-300 ${
+                      <div className="mb-3 flex justify-center sm:mb-6">
+                        <div className={`relative p-3 rounded-xl transition-all duration-300 sm:p-5 sm:rounded-2xl ${
                           paymentMethod === 'pix'
-                            ? 'bg-green-50 border-2 border-green-200'
+                            ? 'bg-green-50 border border-green-200 sm:border-2'
                             : 'bg-gray-100 group-hover:bg-green-50'
                         }`}>
-                          <svg className="w-12 h-12 text-gray-700 group-hover:text-green-600" viewBox="0 0 512 512" fill="currentColor">
+                          <svg className="w-7 h-7 text-gray-700 group-hover:text-green-600 sm:w-12 sm:h-12" viewBox="0 0 512 512" fill="currentColor">
                             <path d="M242.4 292.5C247.8 287.1 257.1 287.1 262.5 292.5L339.5 369.5C353.7 383.7 372.6 391.5 392.6 391.5H407.7L310.6 488.6C280.3 518.1 231.1 518.1 200.8 488.6L103.3 391.2H112.6C132.6 391.2 151.5 383.4 165.7 369.2L242.4 292.5zM262.5 218.9C257.1 224.3 247.8 224.3 242.4 218.9L165.7 142.2C151.5 127.1 132.6 120.2 112.6 120.2H103.3L200.7 22.8C231.1-7.6 280.3-7.6 310.6 22.8L407.8 120H392.6C372.6 120 353.7 127.8 339.5 142L262.5 218.9zM112.6 142.7C126.4 142.7 139.1 148.3 149.7 158.1L226.4 234.8C233.6 241.1 243 245.6 252.5 245.6C261.9 245.6 271.3 241.1 278.5 234.8L355.5 157.8C365.3 148.1 378.8 142.5 392.6 142.5H430.3L488.6 200.8C518.9 231.1 518.9 280.3 488.6 310.6L430.3 368.9H392.6C378.8 368.9 365.3 363.3 355.5 353.5L278.5 276.5C264.6 262.6 240.3 262.6 226.4 276.5L149.7 353.2C139.1 363 126.4 368.6 112.6 368.6H80.78L22.76 310.6C-7.586 280.3-7.586 231.1 22.76 200.8L80.78 142.7H112.6z"/>
                           </svg>
                         </div>
                       </div>
-                      
-                      {/* Conteúdo */}
                       <div className="text-center">
-                        <h3 className="mb-3 text-2xl font-bold text-gray-900">
-                          PIX
-                        </h3>
-                        <p className="mb-4 text-sm text-gray-600">
-                          Pagamento instantâneo e seguro
-                        </p>
-                        <div className="flex items-center justify-center gap-2 text-sm">
-                          <CheckCircle className="h-4 w-4 text-green-600" />
-                          <span className="font-semibold text-green-600">Aprovação Imediata</span>
+                        <h3 className="mb-1 text-sm font-bold text-gray-900 sm:mb-3 sm:text-2xl">PIX</h3>
+                        <p className="mb-2 text-[10px] text-gray-600 sm:mb-4 sm:text-sm">Pagamento instantâneo</p>
+                        <div className="flex items-center justify-center gap-1 text-[10px] sm:gap-2 sm:text-sm">
+                          <CheckCircle className="h-3 w-3 text-green-600 sm:h-4 sm:w-4" />
+                          <span className="font-semibold text-green-600">Imediata</span>
                         </div>
                       </div>
                     </div>
@@ -1522,17 +1501,17 @@ const AnalysisPage = () => {
                 {paymentMethod === 'pix' && (
                   <div className="mx-auto max-w-2xl">
                     {showPixDiscount && (
-                      <div className="mb-6 rounded-2xl border-2 border-yellow-400 bg-gradient-to-r from-yellow-50 to-orange-50 p-6 shadow-lg">
-                        <div className="flex items-center gap-4">
-                          <div className="flex-shrink-0 rounded-full bg-yellow-400 p-3">
-                            <Star className="h-8 w-8 text-white" />
+                      <div className="mb-4 rounded-xl border-2 border-yellow-400 bg-gradient-to-r from-yellow-50 to-orange-50 p-3 shadow-lg sm:mb-6 sm:rounded-2xl sm:p-6">
+                        <div className="flex items-center gap-3 sm:gap-4">
+                          <div className="flex-shrink-0 rounded-full bg-yellow-400 p-2 sm:p-3">
+                            <Star className="h-5 w-5 text-white sm:h-8 sm:w-8" />
                           </div>
                           <div className="flex-1">
-                            <h4 className="mb-2 text-2xl font-bold text-yellow-900">
-                              🎉 Desconto Especial de 20% Ativado!
+                            <h4 className="mb-1 text-sm font-bold text-yellow-900 sm:mb-2 sm:text-2xl">
+                              🎉 Desconto de 20%!
                             </h4>
-                            <p className="mb-4 text-base text-yellow-800">
-                              Devido à falha no processamento do cartão, você ganhou um desconto exclusivo no PIX!
+                            <p className="mb-2 text-xs text-yellow-800 sm:mb-4 sm:text-base">
+                              Falha no cartão? Desconto exclusivo no PIX!
                             </p>
                             <div className="flex flex-wrap items-center gap-3">
                               <div className="flex items-baseline gap-1.5">
@@ -1572,22 +1551,22 @@ const AnalysisPage = () => {
                 {/* Payment Form - Cartão */}
                 {paymentMethod === 'card' && (
                   <div className="mx-auto max-w-2xl">
-                    <div className="space-y-4">
-                      <div className="mb-4 rounded-xl border border-blue-200 bg-blue-50 p-4">
-                        <div className="flex items-start">
-                          <div className="mr-3 mt-0.5 text-blue-600">ℹ️</div>
+                    <div className="space-y-2.5 sm:space-y-4">
+                      <div className="mb-2 rounded-lg border border-blue-200 bg-blue-50 p-2.5 sm:mb-4 sm:rounded-xl sm:p-4">
+                        <div className="flex items-start gap-2 sm:gap-3">
+                          <div className="mt-0.5 text-blue-600 text-sm">ℹ️</div>
                           <div>
-                            <h4 className="mb-1 font-semibold text-blue-800">Observação importante</h4>
-                            <p className="text-sm text-blue-700">
-                              A fatura estará em nome de <strong>Comércio e Varejista Papel Pardo</strong> para garantir total discrição.
+                            <h4 className="text-xs font-semibold text-blue-800 sm:mb-1 sm:text-sm">Observação importante</h4>
+                            <p className="text-[10px] text-blue-700 sm:text-sm">
+                              Fatura em nome de <strong>Comércio e Varejista Papel Pardo</strong> para discrição.
                             </p>
                           </div>
                         </div>
                       </div>
 
-                      <div className="grid gap-4 md:grid-cols-2">
-                        <div>
-                          <label className="mb-2 block text-sm font-semibold text-gray-800">
+                      <div className="grid grid-cols-2 gap-2 sm:gap-4 sm:grid-cols-2">
+                        <div className="col-span-2 sm:col-span-1">
+                          <label className="mb-1 block text-xs font-semibold text-gray-800 sm:mb-2 sm:text-sm">
                             Número do Cartão *
                           </label>
                           <input
@@ -1596,14 +1575,14 @@ const AnalysisPage = () => {
                             value={cardData.cardNumber}
                             onChange={handleCardInputChange}
                             placeholder="1234 5678 9012 3456"
-                            className="input-field"
+                            className="input-field h-10 px-3 py-2 text-sm sm:h-12 sm:px-4 sm:py-3"
                             maxLength={19}
                             inputMode="numeric"
                             required
                           />
                         </div>
-                        <div>
-                          <label className="mb-2 block text-sm font-semibold text-gray-800">
+                        <div className="col-span-2 sm:col-span-1">
+                          <label className="mb-1 block text-xs font-semibold text-gray-800 sm:mb-2 sm:text-sm">
                             Nome no Cartão *
                           </label>
                           <input
@@ -1612,15 +1591,15 @@ const AnalysisPage = () => {
                             value={cardData.cardHolder}
                             onChange={handleCardInputChange}
                             placeholder="NOME COMPLETO"
-                            className="input-field"
+                            className="input-field h-10 px-3 py-2 text-sm sm:h-12 sm:px-4 sm:py-3"
                             required
                           />
                         </div>
                       </div>
 
-                      <div className="grid gap-4 md:grid-cols-3">
+                      <div className="grid grid-cols-3 gap-2 sm:gap-4">
                         <div>
-                          <label className="mb-2 block text-sm font-semibold text-gray-800">
+                          <label className="mb-1 block text-xs font-semibold text-gray-800 sm:mb-2 sm:text-sm">
                             Validade *
                           </label>
                           <input
@@ -1629,14 +1608,14 @@ const AnalysisPage = () => {
                             value={cardData.expiryDate}
                             onChange={handleCardInputChange}
                             placeholder="MM/AA"
-                            className="input-field"
+                            className="input-field h-10 px-3 py-2 text-sm sm:h-12 sm:px-4 sm:py-3"
                             maxLength={5}
                             inputMode="numeric"
                             required
                           />
                         </div>
                         <div>
-                          <label className="mb-2 block text-sm font-semibold text-gray-800">
+                          <label className="mb-1 block text-xs font-semibold text-gray-800 sm:mb-2 sm:text-sm">
                             CVV *
                           </label>
                           <input
@@ -1645,14 +1624,14 @@ const AnalysisPage = () => {
                             value={cardData.cvv}
                             onChange={handleCardInputChange}
                             placeholder="123"
-                            className="input-field"
+                            className="input-field h-10 px-3 py-2 text-sm sm:h-12 sm:px-4 sm:py-3"
                             maxLength={3}
                             inputMode="numeric"
                             required
                           />
                         </div>
                         <div>
-                          <label className="mb-2 block text-sm font-semibold text-gray-800">
+                          <label className="mb-1 block text-xs font-semibold text-gray-800 sm:mb-2 sm:text-sm">
                             CPF *
                           </label>
                           <input
@@ -1661,7 +1640,7 @@ const AnalysisPage = () => {
                             value={cardData.cpf}
                             onChange={handleCardInputChange}
                             placeholder="000.000.000-00"
-                            className="input-field"
+                            className="input-field h-10 px-3 py-2 text-sm sm:h-12 sm:px-4 sm:py-3"
                             maxLength={14}
                             inputMode="numeric"
                             required
@@ -1669,9 +1648,9 @@ const AnalysisPage = () => {
                         </div>
                       </div>
 
-                      <div className="grid gap-4 md:grid-cols-2">
+                      <div className="grid grid-cols-2 gap-2 sm:gap-4">
                         <div>
-                          <label className="mb-2 block text-sm font-semibold text-gray-800">
+                          <label className="mb-1 block text-xs font-semibold text-gray-800 sm:mb-2 sm:text-sm">
                             E-mail
                           </label>
                           <input
@@ -1680,12 +1659,12 @@ const AnalysisPage = () => {
                             value={cardData.email}
                             onChange={handleCardInputChange}
                             placeholder="seu@email.com"
-                            className="input-field"
+                            className="input-field h-10 px-3 py-2 text-sm sm:h-12 sm:px-4 sm:py-3"
                             pattern="[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$"
                           />
                         </div>
                         <div>
-                          <label className="mb-2 block text-sm font-semibold text-gray-800">
+                          <label className="mb-1 block text-xs font-semibold text-gray-800 sm:mb-2 sm:text-sm">
                             Telefone
                           </label>
                           <input
@@ -1694,18 +1673,18 @@ const AnalysisPage = () => {
                             value={cardData.phone}
                             onChange={handleCardInputChange}
                             placeholder="(11) 99999-9999"
-                            className="input-field"
+                            className="input-field h-10 px-3 py-2 text-sm sm:h-12 sm:px-4 sm:py-3"
                           />
                         </div>
                       </div>
 
                       {cardError && (
-                        <div className="rounded-xl border border-red-200 bg-red-50 p-4">
-                          <div className="flex items-start">
-                            <AlertTriangle className="mr-3 mt-0.5 h-5 w-5 text-red-600" />
+                        <div className="rounded-lg border border-red-200 bg-red-50 p-2.5 sm:rounded-xl sm:p-4">
+                          <div className="flex items-start gap-2 sm:gap-3">
+                            <AlertTriangle className="mt-0.5 h-4 w-4 flex-shrink-0 text-red-600 sm:h-5 sm:w-5" />
                             <div>
-                              <h4 className="mb-1 font-semibold text-red-800">Erro no pagamento</h4>
-                              <p className="text-sm text-red-700">{cardError}</p>
+                              <h4 className="text-xs font-semibold text-red-800 sm:mb-1 sm:text-sm">Erro no pagamento</h4>
+                              <p className="text-[10px] text-red-700 sm:text-sm">{cardError}</p>
                             </div>
                           </div>
                         </div>
@@ -1717,7 +1696,7 @@ const AnalysisPage = () => {
                           void handleCardPayment()
                         }}
                         disabled={isProcessing}
-                        className="btn-gradient mt-6 flex w-full items-center justify-center gap-2 rounded-2xl px-6 py-4 text-base font-semibold shadow-lg shadow-rose-200/60 transition disabled:cursor-not-allowed disabled:opacity-70"
+                        className="btn-gradient mt-2 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold shadow-lg shadow-rose-200/60 transition disabled:cursor-not-allowed disabled:opacity-70 sm:mt-6 sm:rounded-2xl sm:px-6 sm:py-4 sm:text-base"
                       >
                         {isProcessing ? (
                           <span className="flex items-center gap-2 text-sm font-semibold">
