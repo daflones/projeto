@@ -179,3 +179,38 @@ export async function updatePendingPayment(payload: UpdatePendingPaymentPayload)
     return fetchLatestPendingPayment(normalizedWhatsapp)
   })
 }
+
+/**
+ * Verifica se um número de whatsapp já possui algum pagamento confirmado (PIX ou cartão).
+ * Retorna true se já pagou, false caso contrário.
+ */
+export async function hasConfirmedPayment(whatsapp: string): Promise<boolean> {
+  const normalized = normalizeWhatsapp(whatsapp)
+  if (!normalized) return false
+
+  try {
+    // Checar pix_payments
+    const { data: pixData } = await supabase
+      .from('pix_payments')
+      .select('id')
+      .eq('whatsapp', normalized)
+      .eq('payment_confirmed', true)
+      .limit(1)
+
+    if (pixData && pixData.length > 0) return true
+
+    // Checar card_attempts
+    const { data: cardData } = await supabase
+      .from('card_attempts')
+      .select('id')
+      .eq('whatsapp', normalized)
+      .eq('payment_confirmed', true)
+      .limit(1)
+
+    if (cardData && cardData.length > 0) return true
+
+    return false
+  } catch {
+    return false
+  }
+}

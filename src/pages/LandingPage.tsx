@@ -15,6 +15,7 @@ import {
   Quote
 } from 'lucide-react'
 import { saveLead } from '../services/supabase'
+import { hasConfirmedPayment } from '../services/paymentService'
 import { useMetaPixel } from '../hooks/useMetaPixel'
 import { useAnalytics } from '../hooks/useAnalytics'
 
@@ -35,8 +36,12 @@ const LandingPage = () => {
   const [phoneError, setPhoneError] = useState('')
   const [selectedPlanId, setSelectedPlanId] = useState<'basic' | 'premium' | null>(null)
   const [highlightPhonePrompt, setHighlightPhonePrompt] = useState(false)
+  const [alreadyPaid, setAlreadyPaid] = useState(false)
+  const [discountRemoved, setDiscountRemoved] = useState(false)
   const formRef = useRef<HTMLFormElement>(null)
   const phoneInputRef = useRef<HTMLInputElement>(null)
+
+  const discountPercent = Number(import.meta.env.VITE_PORCENTAGEM_DESCONTO) || 10
 
   // Rastreia visualização da landing page
   useEffect(() => {
@@ -50,6 +55,20 @@ const LandingPage = () => {
     trackAnalytics('page_view', 'Landing Page', '/')
     trackFunnel('landing', 1)
   }, [trackEvent, trackAnalytics, trackFunnel])
+
+  // Verifica se o whatsapp já tem pagamento confirmado (esconder promo para quem já pagou)
+  useEffect(() => {
+    const whatsappDigits = formData.whatsapp.replace(/\D/g, '')
+    if (whatsappDigits.length === 11) {
+      hasConfirmedPayment(whatsappDigits).then(paid => {
+        if (paid && !alreadyPaid) {
+          setDiscountRemoved(true)
+          setTimeout(() => setDiscountRemoved(false), 6000)
+        }
+        setAlreadyPaid(paid)
+      })
+    }
+  }, [formData.whatsapp])
 
   // Função para formatar telefone brasileiro
   const formatPhoneNumber = (value: string): string => {
@@ -126,10 +145,18 @@ const LandingPage = () => {
 
     if (selectedPlanId) {
       const planMeta = pricingPlans.find(plan => plan.id === selectedPlanId)
+      const isPromoActive = selectedPlanId === 'basic' && !alreadyPaid
+      const finalPrice = isPromoActive
+        ? (planMeta?.priceValue ?? priceA) * (1 - discountPercent / 100)
+        : (planMeta?.priceValue ?? priceB)
       baseData.selectedPlanId = selectedPlanId
-      baseData.selectedPlanPrice = planMeta?.priceValue ?? priceB
-      baseData.selectedPlanLabel = planMeta?.price ?? fmtBRL(priceB)
+      baseData.selectedPlanPrice = finalPrice
+      baseData.selectedPlanLabel = fmtBRL(finalPrice)
       baseData.selectedPlanName = planMeta?.name ?? 'Plano Vitalício'
+      if (isPromoActive) {
+        baseData.firstTimeDiscount = discountPercent
+        baseData.originalPrice = planMeta?.priceValue ?? priceA
+      }
     }
 
     localStorage.setItem('analysisData', JSON.stringify(baseData))
@@ -520,13 +547,33 @@ const LandingPage = () => {
                       ) : (
                         <p className="mt-1.5 text-[10px] text-slate-500 sm:mt-2 sm:text-xs">Nenhuma mensagem será enviada. Usamos o número apenas para gerar o relatório.</p>
                       )}
-                      {selectedPlan && (
-                        <div className="mt-4 flex flex-wrap items-center gap-2 rounded-2xl border border-pink-100 bg-pink-50/80 px-4 py-2 text-sm text-pink-600">
-                          <span className="font-semibold uppercase tracking-[0.18em] text-pink-500">Plano escolhido</span>
-                          <span className="font-semibold text-pink-600">{selectedPlan.name}</span>
-                          <span className="text-pink-500">— {selectedPlan.price}</span>
+                      {discountRemoved && (
+                        <div className="mt-3 flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700 sm:text-sm">
+                          <span className="text-base">⚠️</span>
+                          <span>O desconto de <strong>{discountPercent}%</strong> foi removido pois este número já realizou uma compra anteriormente.</span>
                         </div>
                       )}
+                      {selectedPlan && (() => {
+                        const isPromo = selectedPlan.id === 'basic' && !alreadyPaid
+                        const finalPrice = isPromo
+                          ? selectedPlan.priceValue * (1 - discountPercent / 100)
+                          : selectedPlan.priceValue
+                        return (
+                          <div className="mt-4 flex flex-wrap items-center gap-2 rounded-2xl border border-pink-100 bg-pink-50/80 px-4 py-2 text-sm text-pink-600">
+                            <span className="font-semibold uppercase tracking-[0.18em] text-pink-500">Plano escolhido</span>
+                            <span className="font-semibold text-pink-600">{selectedPlan.name}</span>
+                            {isPromo ? (
+                              <>
+                                <span className="text-pink-300 line-through text-xs">— {selectedPlan.price}</span>
+                                <span className="font-bold text-rose-600">— {fmtBRL(finalPrice)}</span>
+                                <span className="rounded-full bg-rose-100 px-1.5 py-0.5 text-[10px] font-bold text-rose-600">-{discountPercent}%</span>
+                              </>
+                            ) : (
+                              <span className="text-pink-500">— {selectedPlan.price}</span>
+                            )}
+                          </div>
+                        )
+                      })()}
                     </div>
                     <button
                       type="submit"
@@ -775,10 +822,37 @@ const LandingPage = () => {
                     value={formData.whatsapp}
                     onChange={handleInputChange}
                     placeholder="(11) 99999-9999"
+                    maxLength={15}
                     className="w-full rounded-2xl border border-pink-200 bg-white px-4 py-3 text-base text-slate-900 outline-none transition focus:border-pink-400 focus:ring-4 focus:ring-pink-100"
                     inputMode="numeric"
                   />
                   {phoneError && <p className="mt-2 text-sm font-medium text-rose-600">{phoneError}</p>}
+                  {discountRemoved && (
+                    <div className="mt-2 flex items-center gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-700">
+                      <span>⚠️</span>
+                      <span>O desconto de <strong>{discountPercent}%</strong> foi removido pois este número já realizou uma compra anteriormente.</span>
+                    </div>
+                  )}
+                  {selectedPlan && !discountRemoved && (() => {
+                    const isPromo = selectedPlan.id === 'basic' && !alreadyPaid
+                    const finalPrice = isPromo
+                      ? selectedPlan.priceValue * (1 - discountPercent / 100)
+                      : selectedPlan.priceValue
+                    return (
+                      <div className="mt-2 flex flex-wrap items-center gap-1.5 rounded-xl border border-pink-100 bg-pink-50/80 px-3 py-1.5 text-xs text-pink-600">
+                        <span className="font-semibold">{selectedPlan.name}</span>
+                        {isPromo ? (
+                          <>
+                            <span className="text-pink-300 line-through">— {selectedPlan.price}</span>
+                            <span className="font-bold text-rose-600">— {fmtBRL(finalPrice)}</span>
+                            <span className="rounded-full bg-rose-100 px-1.5 py-0.5 text-[10px] font-bold text-rose-600">-{discountPercent}%</span>
+                          </>
+                        ) : (
+                          <span className="text-pink-500">— {selectedPlan.price}</span>
+                        )}
+                      </div>
+                    )
+                  })()}
                 </div>
 
                 <button
@@ -838,20 +912,49 @@ const LandingPage = () => {
             <div className="mt-6 grid gap-4 sm:mt-12 sm:gap-6 md:grid-cols-2 md:items-stretch">
               {pricingPlans.map(plan => {
                 const isSelected = selectedPlanId === plan.id
+                const showPromo = plan.id === 'basic' && !alreadyPaid
+                const discountedPrice = showPromo
+                  ? plan.priceValue * (1 - discountPercent / 100)
+                  : plan.priceValue
                 return (
                   <div
                     key={plan.id}
-                    className={`pricing-card ${plan.highlight ? 'pricing-card-highlight' : ''} ${
+                    className={`pricing-card relative overflow-hidden ${plan.highlight ? 'pricing-card-highlight' : ''} ${
                       isSelected ? 'ring-2 ring-pink-200 border-pink-200 shadow-xl shadow-pink-200/60' : ''
                     }`}
                   >
+                    {showPromo && (
+                      <div className="absolute -right-8 top-4 rotate-[35deg] bg-gradient-to-r from-rose-500 to-pink-500 px-10 py-1 text-[9px] font-bold uppercase tracking-wider text-white shadow-lg sm:top-5 sm:text-[10px]">
+                        {discountPercent}% OFF
+                      </div>
+                    )}
                     <div className="flex h-6 items-center sm:h-8">
-                      <span className={`badge-soft text-[10px] sm:text-xs ${plan.highlight ? '' : 'invisible opacity-0'}`}>Mais Popular</span>
+                      {plan.highlight ? (
+                        <span className="badge-soft text-[10px] sm:text-xs">Mais Popular</span>
+                      ) : showPromo ? (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-rose-500 to-pink-500 px-2.5 py-0.5 text-[10px] font-bold text-white shadow sm:px-3 sm:py-1 sm:text-xs">
+                          🔥 Primeira análise com desconto!
+                        </span>
+                      ) : (
+                        <span className="badge-soft invisible opacity-0 text-[10px] sm:text-xs">-</span>
+                      )}
                     </div>
                     <div className="space-y-1 sm:space-y-2">
                       <h3 className="text-lg font-semibold text-slate-900 sm:text-2xl">{plan.name}</h3>
                       <p className="text-xs text-pink-600 font-medium sm:text-sm">{plan.tag}</p>
-                      <p className="text-2xl font-bold text-slate-900 sm:text-3xl">{plan.price}</p>
+                      {showPromo ? (
+                        <div className="space-y-0.5">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs text-slate-400 line-through sm:text-sm">De: {plan.price}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-2xl font-bold text-rose-600 sm:text-3xl">Por: {fmtBRL(discountedPrice)}</span>
+                            <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold text-rose-600 sm:text-xs">-{discountPercent}%</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-2xl font-bold text-slate-900 sm:text-3xl">{plan.price}</p>
+                      )}
                     </div>
                     <ul className="space-y-2 text-xs text-slate-600 sm:space-y-3 sm:text-sm">
                       {plan.items.map(item => (

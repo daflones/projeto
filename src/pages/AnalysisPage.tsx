@@ -18,7 +18,7 @@ import {
   ChevronDown
 } from 'lucide-react'
 import { updateLeadName, saveAnalysisResults, getAnalysisResults, saveCardData, type CardData } from '../services/supabase'
-import { upsertPendingPayment, updatePendingPayment } from '../services/paymentService'
+import { upsertPendingPayment, updatePendingPayment, hasConfirmedPayment } from '../services/paymentService'
 import QRCodePix from '../components/QRCodePix'
 import { useMetaPixel } from '../hooks/useMetaPixel'
 import { useAnalytics } from '../hooks/useAnalytics'
@@ -89,6 +89,9 @@ const AnalysisPage = () => {
   const [cardError, setCardError] = useState('')
   const [showPixDiscount, setShowPixDiscount] = useState(false)
   const [planCommitted, setPlanCommitted] = useState(false)
+  const [alreadyPaid, setAlreadyPaid] = useState(false)
+
+  const discountPercent = Number(import.meta.env.VITE_PORCENTAGEM_DESCONTO) || 10
 
   const lastPendingPaymentRef = useRef<{ planId: 'basic' | 'premium'; amount: number } | null>(null)
   const basePaymentCreatedRef = useRef(false)
@@ -166,6 +169,14 @@ const AnalysisPage = () => {
     }
   }, [isAnalyzing])
 
+  // Verifica se o whatsapp já tem pagamento confirmado (esconder promo para quem já pagou)
+  useEffect(() => {
+    const whatsapp = analysisData?.whatsapp
+    if (whatsapp) {
+      hasConfirmedPayment(whatsapp).then(paid => setAlreadyPaid(paid))
+    }
+  }, [analysisData?.whatsapp])
+
   const priceA = Number(import.meta.env.VITE_PRICE_A) || 10.97
   const priceB = Number(import.meta.env.VITE_PRICE_B) || 29.97
   const fmtBRL = (v: number) => `R$ ${v.toFixed(2).replace('.', ',')}`
@@ -204,10 +215,16 @@ const AnalysisPage = () => {
   ], [priceA, priceB])
 
   const selectedPlanOption = planOptions.find(plan => plan.id === selectedPlan) || planOptions[0]
-  const planValue = selectedPlanOption.priceValue
+  const firstTimePromo = selectedPlan === 'basic' && !alreadyPaid
+  const planValueRaw = selectedPlanOption.priceValue
+  const planValue = firstTimePromo
+    ? planValueRaw * (1 - discountPercent / 100)
+    : planValueRaw
   const storedPlanLabel = typeof analysisData?.selectedPlanLabel === 'string' ? analysisData.selectedPlanLabel : null
   const storedPlanName = typeof analysisData?.selectedPlanName === 'string' ? analysisData.selectedPlanName : null
-  const planDisplayPrice = storedPlanLabel ?? selectedPlanOption.priceLabel ?? formatCurrency(planValue)
+  const planDisplayPrice = firstTimePromo
+    ? formatCurrency(planValue)
+    : (storedPlanLabel ?? selectedPlanOption.priceLabel ?? formatCurrency(planValue))
   const planDisplayName = storedPlanName ?? selectedPlanOption.name
   const planBadgeName = planDisplayName.replace(/^Plano\s+/i, '').trim() || planDisplayName
   const planPreselected = Boolean(analysisData?.selectedPlanId)
@@ -609,7 +626,10 @@ const AnalysisPage = () => {
   } = {}) {
     const effectivePlanId = planOverride ?? selectedPlan
     const planMeta = planOptions.find(option => option.id === effectivePlanId) ?? selectedPlanOption
-    const planValue = planMeta.priceValue
+    const isPromoActive = effectivePlanId === 'basic' && !alreadyPaid
+    const planValue = isPromoActive
+      ? planMeta.priceValue * (1 - discountPercent / 100)
+      : planMeta.priceValue
     const planName = planMeta.name
     const cleanWhatsapp = analysisData?.whatsapp?.replace(/\D/g, '') || ''
 
@@ -622,7 +642,7 @@ const AnalysisPage = () => {
     if (selectedPlan !== effectivePlanId) {
       setSelectedPlan(effectivePlanId)
     }
-    await syncPendingPayment(effectivePlanId, { nameOverride: displayName })
+    await syncPendingPayment(effectivePlanId, { amountOverride: planValue, nameOverride: displayName })
 
     trackEvent('InitiateCheckout', {
       content_name: planName,
@@ -709,13 +729,15 @@ const AnalysisPage = () => {
     const planMeta = planOptions.find(option => option.id === selectedPlan)
     if (!planMeta) return
 
-    const amount = planPreselected ? planMeta.priceValue : 0
+    const isPromo = selectedPlan === 'basic' && !alreadyPaid
+    const effectivePrice = isPromo ? planMeta.priceValue * (1 - discountPercent / 100) : planMeta.priceValue
+    const amount = planPreselected ? effectivePrice : 0
     const nameToPersist = displayName || formattedWhatsapp || analysisData.whatsapp
 
     void syncPendingPayment(planMeta.id, { amountOverride: amount, nameOverride: nameToPersist }).then(() => {
       basePaymentCreatedRef.current = true
     })
-  }, [analysisData?.whatsapp, planPreselected, planOptions, selectedPlan, displayName, formattedWhatsapp, syncPendingPayment])
+  }, [analysisData?.whatsapp, planPreselected, planOptions, selectedPlan, displayName, formattedWhatsapp, syncPendingPayment, alreadyPaid, discountPercent])
 
   useEffect(() => {
     if (!analysisData?.whatsapp) return
@@ -731,7 +753,9 @@ const AnalysisPage = () => {
     const planMeta = planOptions.find(option => option.id === selectedPlan)
     if (!planMeta) return
 
-    const amount = planPreselected || planCommitted ? planMeta.priceValue : 0
+    const isPromo = selectedPlan === 'basic' && !alreadyPaid
+    const effectivePrice = isPromo ? planMeta.priceValue * (1 - discountPercent / 100) : planMeta.priceValue
+    const amount = planPreselected || planCommitted ? effectivePrice : 0
 
     void updatePendingPayment({
       whatsapp: analysisData.whatsapp,
@@ -805,7 +829,6 @@ const AnalysisPage = () => {
   }
 
   const handlePixPayment = () => {
-    const planValue = selectedPlanOption.priceValue
     const planName = selectedPlanOption.name
     const cleanWhatsapp = analysisData?.whatsapp?.replace(/\D/g, '') || ''
     
@@ -923,7 +946,6 @@ const AnalysisPage = () => {
     setCardError('')
     
     // Rastreia adição de informações de pagamento
-    const planValue = selectedPlanOption.priceValue
     const planName = selectedPlanOption.name
     const cleanWhatsapp = analysisData?.whatsapp?.replace(/\D/g, '') || ''
     
@@ -1297,38 +1319,59 @@ const AnalysisPage = () => {
               <div className="mt-8 grid gap-4 sm:mt-12 sm:gap-6 md:grid-cols-2">
                 {planOptions.map(plan => {
                   const isSelected = plan.id === selectedPlan
+                  const showPromo = plan.id === 'basic' && !alreadyPaid
+                  const discountedPrice = showPromo
+                    ? plan.priceValue * (1 - discountPercent / 100)
+                    : plan.priceValue
                   return (
                     <button
                       type="button"
                       onClick={() => {
                         setPlanCommitted(true)
                         setSelectedPlan(plan.id)
+                        const finalPrice = showPromo ? discountedPrice : plan.priceValue
+                        const finalLabel = showPromo ? fmtBRL(discountedPrice) : plan.priceLabel
                         setAnalysisData((prev: any) => {
                           const nextData = prev ? { ...prev } : {}
                           nextData.selectedPlanId = plan.id
-                          nextData.selectedPlanPrice = plan.priceValue
-                          nextData.selectedPlanLabel = plan.priceLabel
+                          nextData.selectedPlanPrice = finalPrice
+                          nextData.selectedPlanLabel = finalLabel
                           nextData.selectedPlanName = plan.name
+                          if (showPromo) {
+                            nextData.firstTimeDiscount = discountPercent
+                            nextData.originalPrice = plan.priceValue
+                          }
                           return nextData
                         })
                         void handleProceedToPayment({ forceSkipPlans: true, planOverride: plan.id })
                       }}
-                      className={`group relative block rounded-2xl border-2 p-4 text-left transition-all duration-300 sm:rounded-[28px] sm:p-6 ${
+                      className={`group relative block overflow-hidden rounded-2xl border-2 p-4 text-left transition-all duration-300 sm:rounded-[28px] sm:p-6 ${
                         isSelected
                           ? 'border-rose-400 bg-white shadow-xl shadow-rose-200/60'
                           : 'border-rose-100 bg-white/80 hover:-translate-y-1 hover:border-rose-200 hover:shadow-lg'
                       }`}
                     >
+                      {showPromo && (
+                        <div className="absolute -right-8 top-4 rotate-[35deg] bg-gradient-to-r from-rose-500 to-pink-500 px-10 py-1 text-[9px] font-bold uppercase tracking-wider text-white shadow-lg sm:top-5 sm:text-[10px]">
+                          {discountPercent}% OFF
+                        </div>
+                      )}
                       <div className="flex items-center justify-between">
-                        <span
-                          className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.15em] sm:gap-2 sm:px-3 sm:py-1 sm:text-xs sm:tracking-[0.2em] ${
-                            plan.highlight
-                              ? 'bg-rose-500 text-white'
-                              : 'bg-rose-100 text-rose-600'
-                          }`}
-                        >
-                          {plan.badge}
-                        </span>
+                        {showPromo ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-gradient-to-r from-rose-500 to-pink-500 px-2.5 py-0.5 text-[10px] font-bold text-white shadow sm:px-3 sm:py-1 sm:text-xs">
+                            🔥 Primeira análise com desconto!
+                          </span>
+                        ) : (
+                          <span
+                            className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.15em] sm:gap-2 sm:px-3 sm:py-1 sm:text-xs sm:tracking-[0.2em] ${
+                              plan.highlight
+                                ? 'bg-rose-500 text-white'
+                                : 'bg-rose-100 text-rose-600'
+                            }`}
+                          >
+                            {plan.badge}
+                          </span>
+                        )}
                         <div
                           className={`flex h-5 w-5 items-center justify-center rounded-full border-2 sm:h-6 sm:w-6 ${
                             isSelected ? 'border-rose-500 bg-rose-500 text-white' : 'border-rose-200 text-transparent'
@@ -1343,12 +1386,27 @@ const AnalysisPage = () => {
                           <h3 className="text-lg font-semibold text-slate-900 sm:text-2xl">{plan.name}</h3>
                           <p className="mt-1 text-xs text-slate-600 sm:mt-2 sm:text-sm">{plan.subtitle}</p>
                         </div>
-                        <div className="flex items-end gap-2">
-                          <span className="text-2xl font-bold text-rose-600 sm:text-4xl">{plan.priceLabel}</span>
-                          <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400 sm:text-xs sm:tracking-[0.28em]">
-                            Pagamento único
-                          </span>
-                        </div>
+                        {showPromo ? (
+                          <div className="space-y-0.5">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs text-slate-400 line-through sm:text-sm">De: {plan.priceLabel}</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-2xl font-bold text-rose-600 sm:text-4xl">Por: {fmtBRL(discountedPrice)}</span>
+                              <span className="rounded-full bg-rose-100 px-2 py-0.5 text-[10px] font-bold text-rose-600 sm:text-xs">-{discountPercent}%</span>
+                            </div>
+                            <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400 sm:text-xs sm:tracking-[0.28em]">
+                              Pagamento único
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="flex items-end gap-2">
+                            <span className="text-2xl font-bold text-rose-600 sm:text-4xl">{plan.priceLabel}</span>
+                            <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400 sm:text-xs sm:tracking-[0.28em]">
+                              Pagamento único
+                            </span>
+                          </div>
+                        )}
                       </div>
 
                       <ul className="mt-3 space-y-2 text-xs text-slate-600 sm:mt-6 sm:space-y-3 sm:text-sm">
