@@ -11,6 +11,11 @@
   box-sizing: border-box;
 }
 
+html, body {
+  overflow-x: hidden;
+  width: 100%;
+}
+
 :root {
   --pink-50: #fff5fb;
   --pink-100: #ffe1f1;
